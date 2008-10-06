@@ -331,6 +331,8 @@ OMAPFBPreInit(ScrnInfoPtr pScrn, int flags)
 	pScrn->modes = &ofb->default_mode;
 	pScrn->currentMode = pScrn->modes;
 
+	xf86PrintModes(pScrn);
+
 	pScrn->offset.red   = ofb->state_info.red.offset;
 	pScrn->offset.green = ofb->state_info.green.offset;
 	pScrn->offset.blue  = ofb->state_info.blue.offset;
