@@ -536,7 +536,7 @@ int OMAPFBXVInit (ScrnInfoPtr pScrn,
 		return 0;
 	}
 */
-	adaptor = xcalloc(1, sizeof(XF86VideoAdaptorRec));
+	adaptor = xf86XVAllocateVideoAdaptorRec(pScrn);
 	if (adaptor == NULL)
 	{
 		OMAPFBPortFreeRec(pScrn);
@@ -549,8 +549,7 @@ int OMAPFBXVInit (ScrnInfoPtr pScrn,
 	adaptor->type = XvInputMask | XvImageMask | XvWindowMask;
 	adaptor->flags = (VIDEO_OVERLAID_IMAGES);
 	/* FIXME: why does this clip _everything_ away? | VIDEO_CLIP_TO_VIEWPORT); */
-	adaptor->name = xalloc(strlen(name) + 1);
-	strcpy(adaptor->name, name);
+	adaptor->name = xstrdup(name);
 	adaptor->nEncodings = 1;
 	adaptor->pEncodings = xv_encodings;
 	adaptor->nFormats = 1;
@@ -570,10 +569,9 @@ int OMAPFBXVInit (ScrnInfoPtr pScrn,
 	adaptor->QueryImageAttributes = OMAPFBXVQueryImageAttributes;
 	
 	n_adaptors++;
-	*omap_adaptors = xcalloc(n_adaptors, sizeof(XF86VideoAdaptorPtr *));
+	
+	*omap_adaptors = xnfcalloc(sizeof(XF86VideoAdaptorPtr*), n_adaptors);
 	*omap_adaptors[0] = adaptor;
-
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "XV: %p, %s\n", adaptor, adaptor->name);
 	
 	return n_adaptors;
 }
@@ -586,7 +584,7 @@ OMAPFBPortGetRec(ScrnInfoPtr pScrn)
 	if (ofb->port != NULL)
 		return TRUE;
 	
-	ofb->port = xnfcalloc(sizeof(OMAPFBPortPtr), 1);
+	ofb->port = xnfcalloc(sizeof(OMAPFBPortRec), 1);
 
 	return TRUE;
 }

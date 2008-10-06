@@ -350,11 +350,11 @@ static void
 OMAPFBXvScreenInit(ScreenPtr pScreen)
 {
 	ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
-	XF86VideoAdaptorPtr *ptr;
-	XF86VideoAdaptorPtr *omap_adaptors;
-	int on;
+	XF86VideoAdaptorPtr *ptr = NULL;
+	XF86VideoAdaptorPtr *omap_adaptors = NULL;
+	int on = 0;
 
-	int n = xf86XVListGenericAdaptors(pScrn,&ptr);
+	int n = xf86XVListGenericAdaptors(pScrn, &ptr);
 
 	/* Get the omap adaptors */
 	on = OMAPFBXVInit(pScrn, &omap_adaptors);
@@ -363,9 +363,10 @@ OMAPFBXvScreenInit(ScreenPtr pScreen)
 	if (n > 0 || on > 0) {
 		int i;
 		XF86VideoAdaptorPtr *generic_adaptors = ptr;
-		ptr = xalloc((n + on) * sizeof(XF86VideoAdaptorPtr*));
-		for (i = 0; i < n; i++)
+		ptr = xalloc((n + on) * sizeof(XF86VideoAdaptorPtr));
+		for (i = 0; i < n; i++) {
 			ptr[i] = generic_adaptors[i];
+		}
 		for (i = n; i < on; i++) {
 			ptr[i] = omap_adaptors[i-n];
 		}
@@ -373,11 +374,13 @@ OMAPFBXvScreenInit(ScreenPtr pScreen)
 	}
 
 	if (n) {
-		if (!xf86XVScreenInit(pScreen, omap_adaptors, n)) {
+		if (!xf86XVScreenInit(pScreen, ptr, n)) {
 			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-			           "XV: XVScreenInit failed\n");
+			           "XVScreenInit failed\n");
+		} else {
 		}
 	}
+	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "XVideo extension initialized\n");
 }
 
 static Bool
