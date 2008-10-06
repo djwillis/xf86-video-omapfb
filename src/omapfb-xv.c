@@ -29,7 +29,6 @@
 #include <X11/extensions/Xv.h>
 
 #include "omapfb-driver.h"
-#include "omapfb-xv.h"
 #include "omapfb.h"
 
 #include "xf86.h"

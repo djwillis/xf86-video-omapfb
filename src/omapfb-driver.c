@@ -52,7 +52,6 @@
 #include "omapfb.h"
 
 #include "omapfb-driver.h"
-#include "omapfb-xv.h"
 
 #define OMAPFB_VERSION 1000
 #define OMAPFB_DRIVER_NAME "OMAPFB"
