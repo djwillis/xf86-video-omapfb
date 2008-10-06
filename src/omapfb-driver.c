@@ -512,6 +512,7 @@ OMAPFBScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	xf86LoadSubModule(pScrn, "exa");
 	xf86LoaderReqSymLists(exaSymbols, NULL);
 
+#ifdef USE_EXA
 	/* TODO: This should depend on the AccelMethod option */
 	ofb->exa = exaDriverAlloc();
 	if (OMAPFBSetupExa(ofb))
@@ -521,6 +522,7 @@ OMAPFBScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 		xfree(ofb->exa);
 		ofb->exa = NULL;
 	}
+#endif
 
 	/* Initialize XVideo support */
 	OMAPFBXvScreenInit(pScreen);
