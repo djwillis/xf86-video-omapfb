@@ -67,6 +67,7 @@ static Bool OMAPFBSwitchMode(int scrnIndex, DisplayModePtr mode, int flags);
 static void OMAPFBDPMSSet(ScrnInfoPtr pScrn, int mode, int flags);
 
 static void setup_default_mode(OMAPFBPtr ofb);
+static Bool set_mode(OMAPFBPtr ofb, DisplayModePtr mode);
 
 static Bool
 OMAPFBEnsureRec(ScrnInfoPtr pScrn)
@@ -479,7 +480,9 @@ OMAPFBScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 		return FALSE;
 	}
 
-	/* FIXME: Do a real mode set here */
+	/* Enforce the default mode (this is silly I guess) */
+	set_mode(ofb, &ofb->default_mode);
+
 	/* Make sure the plane is up and running */
 	if (ioctl (ofb->fd, OMAPFB_QUERY_PLANE, &ofb->plane_info))
 	{
