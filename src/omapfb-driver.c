@@ -341,6 +341,8 @@ OMAPFBPreInit(ScrnInfoPtr pScrn, int flags)
 	pScrn->mask.blue    = ((1 << ofb->state_info.blue.length) - 1)
 	                          << ofb->state_info.blue.offset;
 	
+	xf86PrintModes(pScrn);
+	
 	/* Set the screen dpi value (we don't give defaults) */
 	xf86SetDpi(pScrn, 0, 0);
 
