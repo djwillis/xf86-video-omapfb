@@ -102,7 +102,6 @@ int OMAPFBXVStopVideo (ScrnInfoPtr pScrn, pointer data, Bool cleanup)
 			return 0;
 		}
 
-
 		if (ioctl (ofb->port->fd, OMAPFB_QUERY_PLANE, &ofb->port->plane_info)) {
 	    		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 	    		           "Failed to query video plane info\n");
@@ -118,17 +117,6 @@ int OMAPFBXVStopVideo (ScrnInfoPtr pScrn, pointer data, Bool cleanup)
 		if (ioctl (ofb->port->fd, OMAPFB_QUERY_PLANE, &ofb->port->plane_info)) {
     			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
     			           "Failed to query video plane info\n");
-		}
-
-		/* Enable the regular plane
-		 * FIXME: It *should* be ok to have them both enabled right?
-		 */
-		ofb->plane_info.enabled = 1;
-		if(ioctl(ofb->fd, OMAPFB_SETUP_PLANE,
-		   &ofb->plane_info) != 0) {
-			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-			           "Failed to enable video overlay\n");
-			return 0;
 		}
 
 		if (ioctl (ofb->port->fd, OMAPFB_SYNC_GFX))
@@ -227,6 +215,7 @@ int OMAPFBXVPutImage (ScrnInfoPtr pScrn,
 #ifdef DEBUG
 		xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Plane was dirty\n");
 #endif
+		/* Currently this is only used to track the plane state */
 		ofb->port->update_window.x = src_x;
 		ofb->port->update_window.y = src_y;
 	 	ofb->port->update_window.width = src_w;
@@ -237,20 +226,17 @@ int OMAPFBXVPutImage (ScrnInfoPtr pScrn,
 	 	ofb->port->update_window.out_width = drw_w;
 	 	ofb->port->update_window.out_height = drw_h;
 
+		/* If we don't have the plane running, enable it */
 		if (!ofb->port->plane_info.enabled) {
 
+			/* The memory size is already set in OMAPFBXVQueryImageAttributes */
 			if (ioctl(ofb->port->fd, OMAPFB_SETUP_MEM, &ofb->port->mem_info) != 0) {
 				xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 				           "Failed to unallocate video plane memory\n");
 				return 0;
 			}
 
-			if (ioctl (ofb->port->fd, FBIOGET_FSCREENINFO, &ofb->port->fixed_info))
-			{
-				xf86Msg(X_ERROR, "Reading hardware info failed\n");
-				return 0;
-			}
-
+			/* Map the framebuffer memory */
 			ofb->port->fb = mmap (NULL, ofb->port->mem_info.size,
 			                PROT_READ | PROT_WRITE, MAP_SHARED,
 			                ofb->port->fd, 0);
@@ -260,91 +246,73 @@ int OMAPFBXVPutImage (ScrnInfoPtr pScrn,
 				return 0;
 			}
 
-			/* Disable the regular plane
-			 * FIXME: It *should* be ok to have them both enabled right?
-			 * Requires MANUAL updates for both?
-			 */
-			ofb->plane_info.enabled = 0;
-			if(ioctl(ofb->fd, OMAPFB_SETUP_PLANE,
-			   &ofb->plane_info) != 0) {
-				xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-				           "Failed to disable base plane\n");
-				return 0;
-			}
-
+			/* Update the state info */
 			if (ioctl (ofb->port->fd, FBIOGET_VSCREENINFO, &ofb->port->state_info))
 			{
 				xf86Msg(X_ERROR, "%s: Reading state info failed\n", __FUNCTION__);
-				return 0;
-			}
-
-			ofb->port->state_info.xres = drw_w & ~15;
-			ofb->port->state_info.yres = drw_h & ~15;
-			ofb->port->state_info.xres_virtual = 0;
-			ofb->port->state_info.yres_virtual = 0;
-			ofb->port->state_info.xoffset = 0;
-			ofb->port->state_info.yoffset = 0;
-			ofb->port->state_info.rotate = 0;
-			ofb->port->state_info.grayscale = 0;
-			ofb->port->state_info.activate = FB_ACTIVATE_NOW;
-			ofb->port->state_info.bits_per_pixel = 0;
-			ofb->port->state_info.nonstd = xv_to_omapfb_format(image);
-
-			if (ioctl (ofb->port->fd, FBIOPUT_VSCREENINFO, &ofb->port->state_info))
-			{
-			        xf86Msg(X_ERROR, "%s: setting state info failed\n", __FUNCTION__);
-			        return 0;
-			}
-			if (ioctl (ofb->port->fd, FBIOGET_VSCREENINFO, &ofb->port->state_info))
-			{
-				xf86Msg(X_ERROR, "%s: Reading state info failed\n", __FUNCTION__);
-				return 0;
-			}
-
-			ofb->port->plane_info.enabled = 1;
-			ofb->port->plane_info.pos_x = drw_x;
-			ofb->port->plane_info.pos_y = drw_y;
-			ofb->port->plane_info.out_width = drw_w;
-			ofb->port->plane_info.out_height = drw_h;
-			if(ioctl(ofb->port->fd, OMAPFB_SETUP_PLANE,
-			   &ofb->port->plane_info) != 0) {
-				xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-				           "Failed to enable video overlay\n");
-				return 0;
-			}
-
-			/* FIXME: until this works, we are stuck with fullscreen
-			 * video (with black bg if the video isn't fullscreen
-			 */
-			if(ioctl(ofb->port->fd, OMAPFB_SET_UPDATE_MODE,
-			   OMAPFB_MANUAL_UPDATE)) {
-				xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-				           "Failed to set update mode\n");
-				return 0;
-			}
-
-			if (ioctl (ofb->port->fd, OMAPFB_SYNC_GFX))
-			{
-				xf86Msg(X_ERROR, "%s: Graphics sync failed\n", __FUNCTION__);
 				return 0;
 			}
 		}
 
-		if(ioctl(ofb->port->fd, OMAPFB_UPDATE_WINDOW,
-		   &ofb->port->update_window) != 0) {
-			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-			           "Failed to setup video update window\n");
+		/* Set up the state info, xres and yres will be used for
+		 * scaling to the values in the plane info strurct
+		 */
+		ofb->port->state_info.xres = src_w & ~15;
+		ofb->port->state_info.yres = src_h & ~15;
+		ofb->port->state_info.xres_virtual = 0;
+		ofb->port->state_info.yres_virtual = 0;
+		ofb->port->state_info.xoffset = 0;
+		ofb->port->state_info.yoffset = 0;
+		ofb->port->state_info.rotate = 0;
+		ofb->port->state_info.grayscale = 0;
+		ofb->port->state_info.activate = FB_ACTIVATE_NOW;
+		ofb->port->state_info.bits_per_pixel = 0;
+		ofb->port->state_info.nonstd = xv_to_omapfb_format(image);
+
+		if (ioctl (ofb->port->fd, FBIOPUT_VSCREENINFO, &ofb->port->state_info))
+		{
+		        xf86Msg(X_ERROR, "%s: setting state info failed\n", __FUNCTION__);
+		        return 0;
+		}
+		if (ioctl (ofb->port->fd, FBIOGET_VSCREENINFO, &ofb->port->state_info))
+		{
+			xf86Msg(X_ERROR, "%s: Reading state info failed\n", __FUNCTION__);
 			return 0;
 		}
-		
+
+		/* Set up the video plane */
+		ofb->port->plane_info.enabled = 1;
+		ofb->port->plane_info.pos_x = drw_x;
+		ofb->port->plane_info.pos_y = drw_y;
+		ofb->port->plane_info.out_width = drw_w & ~15;
+		ofb->port->plane_info.out_height = drw_h & ~15;
+		if(ioctl(ofb->port->fd, OMAPFB_SETUP_PLANE,
+		   &ofb->port->plane_info) != 0) {
+			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			           "Failed to enable video overlay\n");
+			return 0;
+		}
+
+		xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+		           "Enabled video overlay at %ix%i\n",
+		           ofb->port->plane_info.out_width,
+		           ofb->port->plane_info.out_height);
+
 	}
 
 	switch (image)
 	{
+		/* These are similar enough to the supported format and need no
+		 * conversion
+		 */
 		case FOURCC_UYVY:
+		case FOURCC_YUY2:
+			/* FIXME: I guess this should be done line-by-line so 
+			 * we can trim non-16 divisible widths (the image is
+			 * skewed if the width is not divisible by 16)
+			 */
 			memcpy(ofb->port->fb, buf, ofb->port->mem_info.size);
 			break;
-		case FOURCC_YUY2:
 		case FOURCC_I420:
 		case FOURCC_YV12:
 		default:
@@ -562,6 +530,7 @@ OMAPFBPortGetRec(ScrnInfoPtr pScrn)
 		return TRUE;
 	
 	ofb->port = xnfcalloc(sizeof(OMAPFBPortRec), 1);
+	memset(&ofb->port->update_window, 0, sizeof(struct omapfb_update_window));
 
 	return TRUE;
 }
