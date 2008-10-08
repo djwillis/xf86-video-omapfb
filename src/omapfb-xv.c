@@ -382,31 +382,6 @@ int OMAPFBXVQueryImageAttributes (ScrnInfoPtr pScrn,
 			break;
 	}
 
-#ifdef DEBUG
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "format is...\n");
-	switch (id)
-	{
-		case FOURCC_I420:
-			xf86DrvMsg(pScrn->scrnIndex, X_INFO, "I420\n");
-			break;
-		case FOURCC_YV12:
-			xf86DrvMsg(pScrn->scrnIndex, X_INFO, "YV12\n");
-			break;
-		case FOURCC_UYVY:
-			xf86DrvMsg(pScrn->scrnIndex, X_INFO, "UYVY\n");
-			break;
-		case FOURCC_YUY2:
-			xf86DrvMsg(pScrn->scrnIndex, X_INFO, "YUY2\n");
-			break;
-		default:
-			xf86DrvMsg(pScrn->scrnIndex, X_INFO, "unrecognized.\n");
-			break;
-	}
-	
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-	           "XV: %s returning %i for %ix%i image\n",
-	           __FUNCTION__, size, w, h);
-#endif
 	/* This will make us only allocate as much as we need when the frames
 	 * start coming in
 	 */
