@@ -302,19 +302,36 @@ int OMAPFBXVPutImage (ScrnInfoPtr pScrn,
 
 	switch (image)
 	{
-		/* These are similar enough to the supported format and need no
-		 * conversion
+		/* Packed formats carry the YUV (luma and 2 chroma values, ie.
+		 * brightness and 2 color description values) packed in
+		 * two-byte macropixels. Each macropixel translates to two
+		 * pixels on screen.
 		 */
 		case FOURCC_UYVY:
+			/* UYVY is packed like this: [U Y1 | V Y2] */
 		case FOURCC_YUY2:
-			/* FIXME: I guess this should be done line-by-line so 
-			 * we can trim non-16 divisible widths (the image is
-			 * skewed if the width is not divisible by 16)
-			 */
-			memcpy(ofb->port->fb, buf, ofb->port->mem_info.size);
+			/* YUY2 is packed like this: [Y1 U | Y2 V] */
+		{
+			int i;
+			/* Copy only up to nearest 16-divisible line length */
+			for (i = 0; i < src_h; i++)
+			{
+				int len = (src_w & ~15) * 2;
+				int pos = i * len;
+				/* Buffer offset follows input line width */
+				int bufpos = i * src_w * 2;
+				memcpy(ofb->port->fb + pos, buf + bufpos, len);
+			}
+
 			break;
+		}
+
+		/* Planar formats (as the name says) have the YUV colorspace
+		 * components separated to individual planes.
+		 */
 		case FOURCC_I420:
 		case FOURCC_YV12:
+			break;
 		default:
 			break;
 	}
