@@ -319,7 +319,7 @@ int OMAPFBXVPutImage (ScrnInfoPtr pScrn,
 				int len = (src_w & ~15) * 2;
 				int pos = i * len;
 				/* Buffer offset follows input line width */
-				int bufpos = i * src_w * 2;
+				int bufpos = i * ((src_w + 1) & ~1) * 2;
 				memcpy(ofb->port->fb + pos, buf + bufpos, len);
 			}
 
