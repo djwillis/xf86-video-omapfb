@@ -1,6 +1,8 @@
 /* Texas Instruments OMAP framebuffer driver for X.Org
  * Copyright 2008 Kalle Vahlman, <zuh@iki.fi>
  *                Joni Valtanen, <jvaltane@kapsi.fi> 
+ *                Ilpo Ruotsalainen, <lonewolf@iki.fi> 
+ *                Tuomas Kulve, <tuomas@kulve.fi> 
  *
  * Permission to use, copy, modify, distribute and sell this software and its
  * documentation for any purpose is hereby granted without fee, provided that
@@ -66,7 +68,11 @@ static enum omapfb_color_format xv_to_omapfb_format(int format)
 			return OMAPFB_COLOR_YUV422;
 		case FOURCC_I420:
 		case FOURCC_YV12:
-			return OMAPFB_COLOR_YUV420;
+			/* Unfortunately dispc doesn't support planar formats
+			 * (at least currently) so we'll need to convert
+			 * to packed (UYVY)
+			 */
+			return OMAPFB_COLOR_YUV422;
 		default:
 			return -1;
 	}
@@ -232,7 +238,7 @@ int OMAPFBXVPutImage (ScrnInfoPtr pScrn,
 			/* The memory size is already set in OMAPFBXVQueryImageAttributes */
 			if (ioctl(ofb->port->fd, OMAPFB_SETUP_MEM, &ofb->port->mem_info) != 0) {
 				xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-				           "Failed to unallocate video plane memory\n");
+				           "Failed to allocate video plane memory\n");
 				return 0;
 			}
 
@@ -289,7 +295,8 @@ int OMAPFBXVPutImage (ScrnInfoPtr pScrn,
 		if(ioctl(ofb->port->fd, OMAPFB_SETUP_PLANE,
 		   &ofb->port->plane_info) != 0) {
 			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-			           "Failed to enable video overlay\n");
+			           "Failed to enable video overlay: %s\n", strerror(errno));
+			ofb->port->plane_info.enabled = 0;
 			return 0;
 		}
 
@@ -330,8 +337,42 @@ int OMAPFBXVPutImage (ScrnInfoPtr pScrn,
 		 * components separated to individual planes.
 		 */
 		case FOURCC_I420:
-		case FOURCC_YV12:
+		{
+			CARD8 *dest = ofb->port->fb;
+			CARD8 *yb = buf;
+			CARD8 *ub = yb + (src_w*src_h);
+			CARD8 *vb = ub + ((src_w/2)*(src_h/2));
+			int x,y;
+			int i = 0;
+			int uv_i = 0;
+			int y_i = 0;
+
+			for (y = 0; y < src_h; y += 2)
+			{
+				for (x = 0; x < src_w; x += 2)
+				{
+					dest[i+0] = ub[uv_i];
+					dest[i+1] = yb[y_i+0];
+					dest[i+2] = vb[uv_i];
+					dest[i+3] = yb[y_i+1];
+
+					dest[i+0+src_w*2] = ub[uv_i];
+					dest[i+1+src_w*2] = yb[y_i+0+src_w];
+					dest[i+2+src_w*2] = vb[uv_i];
+					dest[i+3+src_w*2] = yb[y_i+1+src_w];
+					
+					uv_i++;
+					y_i += 2;
+					i += 4;
+				}
+				
+				y_i += src_w;
+				i += src_w*2;
+			}
+			
 			break;
+		}
+		case FOURCC_YV12:
 		default:
 			break;
 	}
@@ -399,10 +440,13 @@ int OMAPFBXVQueryImageAttributes (ScrnInfoPtr pScrn,
 			break;
 	}
 
-	/* This will make us only allocate as much as we need when the frames
-	 * start coming in
-	 */
-	ofb->port->mem_info.size = size;
+	w = *width;
+	h = *height;
+
+	w = (w + 1) & ~1;
+	ofb->port->mem_info.size = w << 1;
+	ofb->port->mem_info.size *= h;
+
 	return size;
 }
 
