@@ -31,6 +31,7 @@
 #include <X11/extensions/Xv.h>
 
 #include "omapfb-driver.h"
+#include "omapfb-xv-platform.h"
 #include "omapfb.h"
 
 #include "xf86.h"
@@ -57,27 +58,6 @@ static XF86ImageRec xv_images[] = {
     XVIMAGE_I420, /* OMAPFB_COLOR_YUV420 */
     XVIMAGE_YV12, /* OMAPFB_COLOR_YUV420 */
 };
-
-static enum omapfb_color_format xv_to_omapfb_format(int format)
-{
-	switch (format)
-	{
-		case FOURCC_YUY2:
-			return OMAPFB_COLOR_YUY422;
-		case FOURCC_UYVY:
-			return OMAPFB_COLOR_YUV422;
-		case FOURCC_I420:
-		case FOURCC_YV12:
-			/* Unfortunately dispc doesn't support planar formats
-			 * (at least currently) so we'll need to convert
-			 * to packed (UYVY)
-			 */
-			return OMAPFB_COLOR_YUV422;
-		default:
-			return -1;
-	}
-	return -1;
-}
 
 /* TODO: */
 static XF86AttributeRec xv_attributes[] = {
@@ -190,198 +170,6 @@ int OMAPFBXVQueryBestSize (ScrnInfoPtr pScrn,
 		*p_w = ofb->state_info.xres;
 	if (drw_h > ofb->state_info.yres)
 		*p_h = ofb->state_info.yres;
-
-	return Success;
-}
-
-/* This is where the magic happens, pushes image data from buf to
- * screen.
- */
-int OMAPFBXVPutImage (ScrnInfoPtr pScrn,
-                      short src_x, short src_y, short drw_x, short drw_y,
-                      short src_w, short src_h, short drw_w, short drw_h,
-                      int image, char *buf, short width, short height,
-                      Bool sync, RegionPtr clipBoxes, pointer data)
-{
-	OMAPFBPtr ofb = OMAPFB(pScrn);
-#ifdef DEBUG
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "XV: %s\n", __FUNCTION__);
-#endif
-	if (!ofb->port->plane_info.enabled
-	 || ofb->port->update_window.x != src_x
-	 || ofb->port->update_window.y != src_y
-	 || ofb->port->update_window.width != src_w
-	 || ofb->port->update_window.height != src_h
-	 || ofb->port->update_window.format != xv_to_omapfb_format(image)
-	 || ofb->port->update_window.out_x != drw_x
-	 || ofb->port->update_window.out_y != drw_y
-	 || ofb->port->update_window.out_width != drw_w
-	 || ofb->port->update_window.out_height != drw_h)
-	{
-#ifdef DEBUG
-		xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Plane was dirty\n");
-#endif
-		/* Currently this is only used to track the plane state */
-		ofb->port->update_window.x = src_x;
-		ofb->port->update_window.y = src_y;
-	 	ofb->port->update_window.width = src_w;
-	 	ofb->port->update_window.height = src_h;
-	 	ofb->port->update_window.format = xv_to_omapfb_format(image);
-	 	ofb->port->update_window.out_x = drw_x;
-	 	ofb->port->update_window.out_y = drw_y;
-	 	ofb->port->update_window.out_width = drw_w;
-	 	ofb->port->update_window.out_height = drw_h;
-
-		/* If we don't have the plane running, enable it */
-		if (!ofb->port->plane_info.enabled) {
-
-			/* The memory size is already set in OMAPFBXVQueryImageAttributes */
-			if (ioctl(ofb->port->fd, OMAPFB_SETUP_MEM, &ofb->port->mem_info) != 0) {
-				xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-				           "Failed to allocate video plane memory\n");
-				return 0;
-			}
-
-			/* Map the framebuffer memory */
-			ofb->port->fb = mmap (NULL, ofb->port->mem_info.size,
-			                PROT_READ | PROT_WRITE, MAP_SHARED,
-			                ofb->port->fd, 0);
-			if (ofb->port->fb == NULL) {
-				xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-				           "Mapping video memory failed\n");
-				return 0;
-			}
-
-			/* Update the state info */
-			if (ioctl (ofb->port->fd, FBIOGET_VSCREENINFO, &ofb->port->state_info))
-			{
-				xf86Msg(X_ERROR, "%s: Reading state info failed\n", __FUNCTION__);
-				return 0;
-			}
-		}
-
-		/* Set up the state info, xres and yres will be used for
-		 * scaling to the values in the plane info strurct
-		 */
-		ofb->port->state_info.xres = src_w & ~15;
-		ofb->port->state_info.yres = src_h & ~15;
-		ofb->port->state_info.xres_virtual = 0;
-		ofb->port->state_info.yres_virtual = 0;
-		ofb->port->state_info.xoffset = 0;
-		ofb->port->state_info.yoffset = 0;
-		ofb->port->state_info.rotate = 0;
-		ofb->port->state_info.grayscale = 0;
-		ofb->port->state_info.activate = FB_ACTIVATE_NOW;
-		ofb->port->state_info.bits_per_pixel = 0;
-		ofb->port->state_info.nonstd = xv_to_omapfb_format(image);
-
-		if (ioctl (ofb->port->fd, FBIOPUT_VSCREENINFO, &ofb->port->state_info))
-		{
-		        xf86Msg(X_ERROR, "%s: setting state info failed\n", __FUNCTION__);
-		        return 0;
-		}
-		if (ioctl (ofb->port->fd, FBIOGET_VSCREENINFO, &ofb->port->state_info))
-		{
-			xf86Msg(X_ERROR, "%s: Reading state info failed\n", __FUNCTION__);
-			return 0;
-		}
-
-		/* Set up the video plane */
-		ofb->port->plane_info.enabled = 1;
-		ofb->port->plane_info.pos_x = drw_x;
-		ofb->port->plane_info.pos_y = drw_y;
-		ofb->port->plane_info.out_width = drw_w & ~15;
-		ofb->port->plane_info.out_height = drw_h & ~15;
-		if(ioctl(ofb->port->fd, OMAPFB_SETUP_PLANE,
-		   &ofb->port->plane_info) != 0) {
-			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-			           "Failed to enable video overlay: %s\n", strerror(errno));
-			ofb->port->plane_info.enabled = 0;
-			return 0;
-		}
-
-		xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-		           "Enabled video overlay at %ix%i\n",
-		           ofb->port->plane_info.out_width,
-		           ofb->port->plane_info.out_height);
-
-	}
-
-	switch (image)
-	{
-		/* Packed formats carry the YUV (luma and 2 chroma values, ie.
-		 * brightness and 2 color description values) packed in
-		 * two-byte macropixels. Each macropixel translates to two
-		 * pixels on screen.
-		 */
-		case FOURCC_UYVY:
-			/* UYVY is packed like this: [U Y1 | V Y2] */
-		case FOURCC_YUY2:
-			/* YUY2 is packed like this: [Y1 U | Y2 V] */
-		{
-			int i;
-			/* Copy only up to nearest 16-divisible line length */
-			for (i = 0; i < src_h; i++)
-			{
-				int len = (src_w & ~15) * 2;
-				int pos = i * len;
-				/* Buffer offset follows input line width */
-				int bufpos = i * ((src_w + 1) & ~1) * 2;
-				memcpy(ofb->port->fb + pos, buf + bufpos, len);
-			}
-
-			break;
-		}
-
-		/* Planar formats (as the name says) have the YUV colorspace
-		 * components separated to individual planes.
-		 */
-		case FOURCC_I420:
-		{
-			CARD8 *dest = ofb->port->fb;
-			CARD8 *yb = buf;
-			CARD8 *ub = yb + (src_w*src_h);
-			CARD8 *vb = ub + ((src_w/2)*(src_h/2));
-			int x,y;
-			int i = 0;
-			int uv_i = 0;
-			int y_i = 0;
-
-			for (y = 0; y < src_h; y += 2)
-			{
-				for (x = 0; x < src_w; x += 2)
-				{
-					dest[i+0] = ub[uv_i];
-					dest[i+1] = yb[y_i+0];
-					dest[i+2] = vb[uv_i];
-					dest[i+3] = yb[y_i+1];
-
-					dest[i+0+src_w*2] = ub[uv_i];
-					dest[i+1+src_w*2] = yb[y_i+0+src_w];
-					dest[i+2+src_w*2] = vb[uv_i];
-					dest[i+3+src_w*2] = yb[y_i+1+src_w];
-					
-					uv_i++;
-					y_i += 2;
-					i += 4;
-				}
-				
-				y_i += src_w;
-				i += src_w*2;
-			}
-			
-			break;
-		}
-		case FOURCC_YV12:
-		default:
-			break;
-	}
-
-	if (ioctl (ofb->port->fd, OMAPFB_SYNC_GFX))
-	{
-		xf86Msg(X_ERROR, "%s: Graphics sync failed\n", __FUNCTION__);
-		return 0;
-	}
 
 	return Success;
 }
@@ -546,8 +334,18 @@ int OMAPFBXVInit (ScrnInfoPtr pScrn,
 	adaptor->SetPortAttribute = OMAPFBXVSetPortAttribute;
 	adaptor->GetPortAttribute = OMAPFBXVGetPortAttribute;
 	adaptor->QueryBestSize = OMAPFBXVQueryBestSize;
-	adaptor->PutImage = OMAPFBXVPutImage;
 	adaptor->QueryImageAttributes = OMAPFBXVQueryImageAttributes;
+
+	/* PutImage can have specific requirements for different CPU revisions
+	   and LCD controller chips */
+	if (strncmp(ofb->ctrl_name, "blizzard", 8) == 0) {
+		/* Blizzard is Epson S1D13745A01, found on eg. Nokia N8x0 */
+		adaptor->PutImage = OMAPFBXVPutImageBlizzard;
+		adaptor->PutImage = OMAPFBXVPutImageGeneric;
+	} else {
+		/* Generic implementation */
+		adaptor->PutImage = OMAPFBXVPutImageGeneric;
+	}
 	
 	n_adaptors++;
 	
