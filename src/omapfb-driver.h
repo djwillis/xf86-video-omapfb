@@ -55,6 +55,9 @@ typedef struct {
 	struct omapfb_mem_info mem_info;
 	struct omapfb_caps caps;
 	struct omapfb_plane_info plane_info;
+
+	/* LCD controller name */
+	char ctrl_name[32];
 	
 	OMAPFBPortPtr port;
 

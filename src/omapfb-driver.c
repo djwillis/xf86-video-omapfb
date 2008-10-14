@@ -141,6 +141,39 @@ static const char *exaSymbols[] = {
     NULL
 };
 
+Bool
+OMAPFBCheckPlaneCaps (ScrnInfoPtr pScrn, int fd)
+{
+	struct omapfb_caps caps;
+	if (ioctl (fd, OMAPFB_GET_CAPS, &caps))
+	{
+		return FALSE;
+	}
+
+	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+	           "Plane capabilities:\n%s%s%s%s%s%s%s%s%s",
+	           (caps.ctrl & OMAPFB_CAPS_MANUAL_UPDATE) ?
+	             "\tManual updates\n" : "",
+	           (caps.ctrl & OMAPFB_CAPS_TEARSYNC) ?
+	             "\tTearsync\n" : "",
+	           (caps.ctrl & OMAPFB_CAPS_PLANE_RELOCATE_MEM) ?
+	             "\tPlane memory relocation\n" : "",
+	           (caps.ctrl & OMAPFB_CAPS_PLANE_SCALE) ?
+	             "\tPlane scaling\n" : "",
+	           (caps.ctrl & OMAPFB_CAPS_WINDOW_PIXEL_DOUBLE) ?
+	             "\tUpdate window pixel doubling\n" : "",
+	           (caps.ctrl & OMAPFB_CAPS_WINDOW_SCALE) ?
+	             "\tUpdate window scaling\n" : "",
+	           (caps.ctrl & OMAPFB_CAPS_WINDOW_OVERLAY) ?
+	             "\tOverlays\n" : "",
+	           (caps.ctrl & OMAPFB_CAPS_WINDOW_ROTATE) ?
+	             "\tRotation\n" : "",
+	           (caps.ctrl & OMAPFB_CAPS_SET_BACKLIGHT) ?
+	             "\tRotation\n" : ""
+	           );
+
+	return TRUE;
+}
 
 static Bool
 OMAPFBProbe(DriverPtr drv, int flags)
@@ -173,9 +206,8 @@ OMAPFBProbe(DriverPtr drv, int flags)
 		if (fd > 0)
 		{
 			int entity;
-			struct omapfb_caps caps;
 
-			if (ioctl (fd, OMAPFB_GET_CAPS, &caps))
+			if (!OMAPFBCheckPlaneCaps (pScrn, fd))
 			{
 				/* This wasn't an OMAP framebuffer */
 				close(fd);
@@ -218,6 +250,7 @@ OMAPFBPreInit(ScrnInfoPtr pScrn, int flags)
 {
 	OMAPFBPtr ofb;
 	EntityInfoPtr pEnt;
+	int fd;
 	char *dev;
 	rgb zeros = { 0, 0, 0 };
 
@@ -241,8 +274,8 @@ OMAPFBPreInit(ScrnInfoPtr pScrn, int flags)
 	ofb->fd = open(dev != NULL ? dev : DEFAULT_DEVICE, O_RDWR, 0);
 	if (ofb->fd == -1)
 	{
-		xf86Msg(X_ERROR, "%s: Opening '%s' failed\n", __FUNCTION__,
-			dev != NULL ? dev : DEFAULT_DEVICE);
+		xf86Msg(X_ERROR, "%s: Opening '%s' failed: %s\n", __FUNCTION__,
+			dev != NULL ? dev : DEFAULT_DEVICE, strerror(errno));
 		OMAPFBFreeRec(pScrn);
 		return FALSE;
 	}
@@ -253,6 +286,36 @@ OMAPFBPreInit(ScrnInfoPtr pScrn, int flags)
 		OMAPFBFreeRec(pScrn);
 		return FALSE;
 	}
+
+	/* Try to detect what LCD controller we're using */
+
+/* FIXME: fetch this from hal? */
+#define SYSFS_LCTRL_FILE "/sys/devices/platform/omapfb/ctrl/name"
+
+	fd = open(SYSFS_LCTRL_FILE, O_RDONLY, 0);
+	if (fd == -1) {
+		xf86Msg(X_WARNING, "Error opening %s: %s\n",
+		SYSFS_LCTRL_FILE, strerror(errno));
+	} else {
+		int s = read(fd, ofb->ctrl_name, 31);
+		close(fd);
+		if (s > 0)
+		{
+			ofb->ctrl_name[s-1] = '\0';
+		} else {
+			fd = -1;
+			xf86Msg(X_WARNING, "Error reading from %s: %s\n",
+				SYSFS_LCTRL_FILE, strerror(errno));
+		}
+	}
+
+	if (fd == -1) {
+		xf86Msg(X_WARNING,
+			"Can't autodetect LCD controller, assuming dispc\n");
+		strcpy(ofb->ctrl_name, "internal");
+	}
+
+	xf86Msg(X_INFO, "LCD controller: %s\n", ofb->ctrl_name);
 
 	if (ioctl (ofb->fd, FBIOGET_VSCREENINFO, &ofb->state_info))
 	{
@@ -330,8 +393,6 @@ OMAPFBPreInit(ScrnInfoPtr pScrn, int flags)
 	/* TODO: Add all validated modes here */
 	pScrn->modes = &ofb->default_mode;
 	pScrn->currentMode = pScrn->modes;
-
-	xf86PrintModes(pScrn);
 
 	pScrn->offset.red   = ofb->state_info.red.offset;
 	pScrn->offset.green = ofb->state_info.green.offset;
