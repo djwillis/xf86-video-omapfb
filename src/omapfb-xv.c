@@ -341,7 +341,6 @@ int OMAPFBXVInit (ScrnInfoPtr pScrn,
 	if (strncmp(ofb->ctrl_name, "blizzard", 8) == 0) {
 		/* Blizzard is Epson S1D13745A01, found on eg. Nokia N8x0 */
 		adaptor->PutImage = OMAPFBXVPutImageBlizzard;
-		adaptor->PutImage = OMAPFBXVPutImageGeneric;
 	} else {
 		/* Generic implementation */
 		adaptor->PutImage = OMAPFBXVPutImageGeneric;
