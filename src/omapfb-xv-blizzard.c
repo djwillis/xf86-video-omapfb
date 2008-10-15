@@ -26,6 +26,13 @@
  * found on eg. Nokia N8x0
  */
 
+#include "xf86.h"
+#include "xf86_OSlib.h"
+#include "xf86xv.h"
+#include "fourcc.h"
+
+#include <X11/extensions/Xv.h>
+
 #include "omapfb-driver.h"
 #include "omapfb-xv-platform.h"
 
