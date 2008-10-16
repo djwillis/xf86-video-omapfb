@@ -253,7 +253,7 @@ int OMAPFBXVInit (ScrnInfoPtr pScrn,
 	ofb->port->fd = open(OMAP_FBDEV1_NAME, O_RDWR);
 	if(ofb->port->fd < 0) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-		           "Failed to open %s\n", OMAP_FBDEV1_NAME);
+		           "Failed to open %s: %s\n", OMAP_FBDEV1_NAME, strerror(errno));
 		OMAPFBPortFreeRec(pScrn);
 		return 0;
 	}
