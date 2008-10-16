@@ -218,7 +218,7 @@ OMAPFBProbe(DriverPtr drv, int flags)
 			           (caps.ctrl & OMAPFB_CAPS_WINDOW_ROTATE) ?
 			             "\tRotation\n" : "",
 			           (caps.ctrl & OMAPFB_CAPS_SET_BACKLIGHT) ?
-			             "\tRotation\n" : ""
+			             "\tBacklight control\n" : ""
 			           );
 			
 		} else {
