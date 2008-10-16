@@ -141,40 +141,6 @@ static const char *exaSymbols[] = {
     NULL
 };
 
-Bool
-OMAPFBCheckPlaneCaps (ScrnInfoPtr pScrn, int fd)
-{
-	struct omapfb_caps caps;
-	if (ioctl (fd, OMAPFB_GET_CAPS, &caps))
-	{
-		return FALSE;
-	}
-
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-	           "Plane capabilities:\n%s%s%s%s%s%s%s%s%s",
-	           (caps.ctrl & OMAPFB_CAPS_MANUAL_UPDATE) ?
-	             "\tManual updates\n" : "",
-	           (caps.ctrl & OMAPFB_CAPS_TEARSYNC) ?
-	             "\tTearsync\n" : "",
-	           (caps.ctrl & OMAPFB_CAPS_PLANE_RELOCATE_MEM) ?
-	             "\tPlane memory relocation\n" : "",
-	           (caps.ctrl & OMAPFB_CAPS_PLANE_SCALE) ?
-	             "\tPlane scaling\n" : "",
-	           (caps.ctrl & OMAPFB_CAPS_WINDOW_PIXEL_DOUBLE) ?
-	             "\tUpdate window pixel doubling\n" : "",
-	           (caps.ctrl & OMAPFB_CAPS_WINDOW_SCALE) ?
-	             "\tUpdate window scaling\n" : "",
-	           (caps.ctrl & OMAPFB_CAPS_WINDOW_OVERLAY) ?
-	             "\tOverlays\n" : "",
-	           (caps.ctrl & OMAPFB_CAPS_WINDOW_ROTATE) ?
-	             "\tRotation\n" : "",
-	           (caps.ctrl & OMAPFB_CAPS_SET_BACKLIGHT) ?
-	             "\tRotation\n" : ""
-	           );
-
-	return TRUE;
-}
-
 static Bool
 OMAPFBProbe(DriverPtr drv, int flags)
 {
@@ -206,8 +172,9 @@ OMAPFBProbe(DriverPtr drv, int flags)
 		if (fd > 0)
 		{
 			int entity;
+			struct omapfb_caps caps;
 
-			if (!OMAPFBCheckPlaneCaps (pScrn, fd))
+			if (ioctl (fd, OMAPFB_GET_CAPS, &caps))
 			{
 				/* This wasn't an OMAP framebuffer */
 				close(fd);
@@ -231,6 +198,28 @@ OMAPFBProbe(DriverPtr drv, int flags)
 			pScrn->SwitchMode    = OMAPFBSwitchMode;
 			pScrn->EnterVT       = OMAPFBEnterVT;
 			pScrn->LeaveVT       = OMAPFBLeaveVT;
+
+			xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+			           "Plane capabilities:\n%s%s%s%s%s%s%s%s%s",
+	  		         (caps.ctrl & OMAPFB_CAPS_MANUAL_UPDATE) ?
+			             "\tManual updates\n" : "",
+			           (caps.ctrl & OMAPFB_CAPS_TEARSYNC) ?
+			             "\tTearsync\n" : "",
+			           (caps.ctrl & OMAPFB_CAPS_PLANE_RELOCATE_MEM) ?
+			             "\tPlane memory relocation\n" : "",
+			           (caps.ctrl & OMAPFB_CAPS_PLANE_SCALE) ?
+			             "\tPlane scaling\n" : "",
+			           (caps.ctrl & OMAPFB_CAPS_WINDOW_PIXEL_DOUBLE) ?
+			             "\tUpdate window pixel doubling\n" : "",
+			           (caps.ctrl & OMAPFB_CAPS_WINDOW_SCALE) ?
+			             "\tUpdate window scaling\n" : "",
+			           (caps.ctrl & OMAPFB_CAPS_WINDOW_OVERLAY) ?
+			             "\tOverlays\n" : "",
+			           (caps.ctrl & OMAPFB_CAPS_WINDOW_ROTATE) ?
+			             "\tRotation\n" : "",
+			           (caps.ctrl & OMAPFB_CAPS_SET_BACKLIGHT) ?
+			             "\tRotation\n" : ""
+			           );
 			
 		} else {
 			xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
