@@ -36,7 +36,7 @@
 #include "omapfb-xv-platform.h"
 #include "image-format-conversions.h"
 
-static enum omapfb_color_format xv_to_omapfb_format(int format)
+enum omapfb_color_format xv_to_omapfb_format(int format)
 {
 	switch (format)
 	{
@@ -155,7 +155,7 @@ int OMAPFBXVPutImageGeneric (ScrnInfoPtr pScrn,
 		}
 
 		/* Set up the state info, xres and yres will be used for
-		 * scaling to the values in the plane info strurct
+		 * scaling to the values in the plane info struct
 		 */
 		ofb->port->state_info.xres = src_w & ~15;
 		ofb->port->state_info.yres = src_h & ~15;
