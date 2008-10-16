@@ -32,7 +32,7 @@
 
 #include "omapfb-driver.h"
 
-static enum omapfb_color_format xv_to_omapfb_format(int format);
+enum omapfb_color_format xv_to_omapfb_format(int format);
 int OMAPXVAllocPlane(ScrnInfoPtr pScrn);
 int OMAPXVSetupVideoPlane(ScrnInfoPtr pScrn);
 
