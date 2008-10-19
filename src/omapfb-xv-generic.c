@@ -247,4 +247,60 @@ int OMAPFBXVPutImageGeneric (ScrnInfoPtr pScrn,
 	return Success;
 }
 
+/* Stop video, only deinit overlay if cleanup is true */
+int OMAPFBXVStopVideoGeneric (ScrnInfoPtr pScrn, pointer data, Bool cleanup)
+{
+	OMAPFBPtr ofb = OMAPFB(pScrn);
+	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "XV: %s (%i)\n", __FUNCTION__, cleanup);
+
+	if (ofb->port == NULL)
+		return Success;
+
+	if(ofb->port->plane_info.enabled) {
+		if (ioctl (ofb->port->fd, OMAPFB_SYNC_GFX))
+		{
+			xf86Msg(X_ERROR, "%s: Graphics sync failed\n", __FUNCTION__);
+			return 0;
+		}
+
+		if (ioctl (ofb->port->fd, OMAPFB_QUERY_PLANE, &ofb->port->plane_info)) {
+	    		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+	    		           "Failed to query video plane info\n");
+		}
+
+		/* Disable the video plane */
+		munmap(ofb->port->fb, ofb->port->mem_info.size);
+		ofb->port->plane_info.enabled = 0;
+		if (ioctl (ofb->port->fd, OMAPFB_SETUP_PLANE, &ofb->port->plane_info)) {
+	    		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+	    		           "Failed to disable video plane\n");
+		}
+		if (ioctl (ofb->port->fd, OMAPFB_QUERY_PLANE, &ofb->port->plane_info)) {
+    			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+    			           "Failed to query video plane info\n");
+		}
+
+		if (ioctl (ofb->port->fd, OMAPFB_SYNC_GFX))
+		{
+			xf86Msg(X_ERROR, "%s: Graphics sync failed\n", __FUNCTION__);
+			return 0;
+		}
+	}
+
+	if (cleanup == TRUE) {
+		if(ioctl(ofb->port->fd, OMAPFB_QUERY_MEM, &ofb->port->mem_info) != 0) {
+			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			           "Failed to fetch memory info\n");
+			return;
+		}
+		ofb->port->mem_info.size = 0;
+		if(ioctl(ofb->port->fd, OMAPFB_SETUP_MEM, &ofb->port->mem_info) != 0) {
+			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			           "Failed to set memory info\n");
+			return;
+		}
+	}
+
+	return Success;
+}
 

@@ -72,63 +72,6 @@ static int OMAPFBPortSetup (ScrnInfoPtr pScrn, const char *device);
 
 /* XV interface functions */
 
-/* Stop video, only deinit overlay if cleanup is true */
-int OMAPFBXVStopVideo (ScrnInfoPtr pScrn, pointer data, Bool cleanup)
-{
-	OMAPFBPtr ofb = OMAPFB(pScrn);
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "XV: %s (%i)\n", __FUNCTION__, cleanup);
-
-	if (ofb->port == NULL)
-		return Success;
-
-	if(ofb->port->plane_info.enabled) {
-		if (ioctl (ofb->port->fd, OMAPFB_SYNC_GFX))
-		{
-			xf86Msg(X_ERROR, "%s: Graphics sync failed\n", __FUNCTION__);
-			return 0;
-		}
-
-		if (ioctl (ofb->port->fd, OMAPFB_QUERY_PLANE, &ofb->port->plane_info)) {
-	    		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-	    		           "Failed to query video plane info\n");
-		}
-
-		/* Disable the video plane */
-		munmap(ofb->port->fb, ofb->port->mem_info.size);
-		ofb->port->plane_info.enabled = 0;
-		if (ioctl (ofb->port->fd, OMAPFB_SETUP_PLANE, &ofb->port->plane_info)) {
-	    		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-	    		           "Failed to disable video plane\n");
-		}
-		if (ioctl (ofb->port->fd, OMAPFB_QUERY_PLANE, &ofb->port->plane_info)) {
-    			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-    			           "Failed to query video plane info\n");
-		}
-
-		if (ioctl (ofb->port->fd, OMAPFB_SYNC_GFX))
-		{
-			xf86Msg(X_ERROR, "%s: Graphics sync failed\n", __FUNCTION__);
-			return 0;
-		}
-	}
-
-	if (cleanup == TRUE) {
-		if(ioctl(ofb->port->fd, OMAPFB_QUERY_MEM, &ofb->port->mem_info) != 0) {
-			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-			           "Failed to fetch memory info\n");
-			return;
-		}
-		ofb->port->mem_info.size = 0;
-		if(ioctl(ofb->port->fd, OMAPFB_SETUP_MEM, &ofb->port->mem_info) != 0) {
-			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-			           "Failed to set memory info\n");
-			return;
-		}
-	}
-
-	return Success;
-}
-
 /* Set attributes */
 int OMAPFBXVSetPortAttribute (ScrnInfoPtr pScrn,
                               Atom attribute,
@@ -343,20 +286,20 @@ int OMAPFBXVInit (ScrnInfoPtr pScrn,
 	adaptor->pAttributes = xv_attributes;
 	adaptor->nImages = 4;
 	adaptor->pImages = xv_images;
-	adaptor->StopVideo = OMAPFBXVStopVideo;
 	adaptor->SetPortAttribute = OMAPFBXVSetPortAttribute;
 	adaptor->GetPortAttribute = OMAPFBXVGetPortAttribute;
 	adaptor->QueryBestSize = OMAPFBXVQueryBestSize;
 	adaptor->QueryImageAttributes = OMAPFBXVQueryImageAttributes;
+
+	/* Generic implementation */
+	adaptor->PutImage = OMAPFBXVPutImageGeneric;
+	adaptor->StopVideo = OMAPFBXVStopVideoGeneric;
 
 	/* PutImage can have specific requirements for different CPU revisions
 	   and LCD controller chips */
 	if (strncmp(ofb->ctrl_name, "blizzard", 8) == 0) {
 		/* Blizzard is Epson S1D13745A01, found on eg. Nokia N8x0 */
 		adaptor->PutImage = OMAPFBXVPutImageBlizzard;
-	} else {
-		/* Generic implementation */
-		adaptor->PutImage = OMAPFBXVPutImageGeneric;
 	}
 	
 	n_adaptors++;
