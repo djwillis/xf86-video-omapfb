@@ -147,6 +147,20 @@ int OMAPFBXVPutImageGeneric (ScrnInfoPtr pScrn,
 	 	ofb->port->update_window.out_width = drw_w;
 	 	ofb->port->update_window.out_height = drw_h;
 
+		if (OUTPUT_IS_OFFSCREEN)
+		{
+			xf86Msg(X_NOT_IMPLEMENTED,
+			        "Partially offscreen video not supported yet\n");
+			/* Stop video... */
+			if (ofb->port->plane_info.enabled) {
+				OMAPFBXVStopVideoBlizzard(pScrn, NULL, FALSE);
+			}
+			/* ..but return Success so that clients don't die
+			 * in case this was just a temprorary thing.
+			 */
+			return Success;
+		}
+
 		/* If we don't have the plane running, enable it */
 		if (!ofb->port->plane_info.enabled) {
 			ret = OMAPXVAllocPlane(pScrn);

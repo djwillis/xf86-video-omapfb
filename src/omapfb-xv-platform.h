@@ -51,5 +51,7 @@ int OMAPFBXVPutImageBlizzard (ScrnInfoPtr pScrn,
                              Bool sync, RegionPtr clipBoxes, pointer data);
 int OMAPFBXVStopVideoBlizzard (ScrnInfoPtr pScrn, pointer data, Bool cleanup);
 
+#define OUTPUT_IS_OFFSCREEN (drw_x < 0 || drw_y < 0 || drw_x + drw_w > ofb->state_info.xres || drw_y + drw_h > ofb->state_info.yres)
+
 #endif /* __OMAPFB_XV_PLATFORM_H__ */
 
