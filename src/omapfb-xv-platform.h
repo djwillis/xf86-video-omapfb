@@ -49,6 +49,7 @@ int OMAPFBXVPutImageBlizzard (ScrnInfoPtr pScrn,
                              short src_w, short src_h, short drw_w, short drw_h,
                              int image, char *buf, short width, short height,
                              Bool sync, RegionPtr clipBoxes, pointer data);
+int OMAPFBXVStopVideoBlizzard (ScrnInfoPtr pScrn, pointer data, Bool cleanup);
 
 #endif /* __OMAPFB_XV_PLATFORM_H__ */
 

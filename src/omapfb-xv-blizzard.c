@@ -24,6 +24,10 @@
 /*
  * PutImage implementation for the Epson S1D13745 aka Blizzard LCD controller,
  * found on eg. Nokia N8x0
+ *
+ * Known features/limitations:
+ *  - update window size and position must be divisible by 2 in both directions
+ *  - 
  */
 
 #include "xf86.h"
@@ -43,6 +47,7 @@ int OMAPFBXVPutImageBlizzard (ScrnInfoPtr pScrn,
                               int image, char *buf, short width, short height,
                               Bool sync, RegionPtr clipBoxes, pointer data)
 {
+	struct omapfb_update_window uw;
 	OMAPFBPtr ofb = OMAPFB(pScrn);
 
 	if (!ofb->port->plane_info.enabled
@@ -101,9 +106,35 @@ int OMAPFBXVPutImageBlizzard (ScrnInfoPtr pScrn,
 		ret = OMAPXVSetupVideoPlane(pScrn);
 		if (ret != Success)
 			return ret;
+		
+		ret = OMAPFB_MANUAL_UPDATE;
+		if (ioctl (ofb->port->fd, OMAPFB_SET_UPDATE_MODE, &ret))
+		{
+			xf86Msg(X_ERROR, "%s: Failed to set manual update mode:"
+			                 " %s\n", __FUNCTION__, strerror(errno));
+			return XvBadAlloc;
+		}
 
 	}
 
+	uw = ofb->port->update_window;
+	uw.x = src_x & ~1;
+	uw.y = src_y & ~1;
+	uw.width = src_w & ~15;
+	uw.height = src_h & ~15;
+	uw.format = 0; //|= OMAPFB_FORMAT_FLAG_DISABLE_OVERLAY;
+	uw.out_x = drw_x & ~1;
+	uw.out_y = drw_y & ~1;
+	uw.out_width = drw_w & ~15;
+	uw.out_height = drw_h & ~15;
+
+/*
+	xf86Msg(X_INFO, "%s: %ix%i => %ix%i\n", __FUNCTION__,
+	                 uw.width, uw.height,
+	                 uw.out_width, uw.out_height
+	                 );
+*/
+	
 	switch (image)
 	{
 		/* Packed formats carry the YUV (luma and 2 chroma values, ie.
@@ -171,6 +202,13 @@ int OMAPFBXVPutImageBlizzard (ScrnInfoPtr pScrn,
 			break;
 	}
 
+	if (ioctl (ofb->port->fd, OMAPFB_UPDATE_WINDOW, &uw))
+	{
+		xf86Msg(X_ERROR, "%s: Failed to update screen:"
+		                 " %s\n", __FUNCTION__, strerror(errno));
+		return XvBadAlloc;
+	}
+
 	if (sync) {
 		if (ioctl (ofb->port->fd, OMAPFB_SYNC_GFX))
 		{
@@ -182,4 +220,70 @@ int OMAPFBXVPutImageBlizzard (ScrnInfoPtr pScrn,
 	return Success;
 }
 
+/* Stop video, only deinit overlay if cleanup is true */
+int OMAPFBXVStopVideoBlizzard (ScrnInfoPtr pScrn, pointer data, Bool cleanup)
+{
+	OMAPFBPtr ofb = OMAPFB(pScrn);
+	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "XV: %s (%i)\n", __FUNCTION__, cleanup);
+
+	if (ofb->port == NULL)
+		return Success;
+
+	if(ofb->port->plane_info.enabled) {
+		int mode;
+		
+		if (ioctl (ofb->port->fd, OMAPFB_SYNC_GFX))
+		{
+			xf86Msg(X_ERROR, "%s: Graphics sync failed\n", __FUNCTION__);
+			return 0;
+		}
+
+		mode = OMAPFB_AUTO_UPDATE;
+		if (ioctl (ofb->port->fd, OMAPFB_SET_UPDATE_MODE, &mode))
+		{
+			xf86Msg(X_ERROR, "%s: Failed to set auto update mode:"
+			                 " %s\n", __FUNCTION__, strerror(errno));
+			return XvBadAlloc;
+		}
+
+		if (ioctl (ofb->port->fd, OMAPFB_QUERY_PLANE, &ofb->port->plane_info)) {
+	    		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+	    		           "Failed to query video plane info\n");
+		}
+
+		/* Disable the video plane */
+		munmap(ofb->port->fb, ofb->port->mem_info.size);
+		ofb->port->plane_info.enabled = 0;
+		if (ioctl (ofb->port->fd, OMAPFB_SETUP_PLANE, &ofb->port->plane_info)) {
+	    		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+	    		           "Failed to disable video plane\n");
+		}
+		if (ioctl (ofb->port->fd, OMAPFB_QUERY_PLANE, &ofb->port->plane_info)) {
+    			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+    			           "Failed to query video plane info\n");
+		}
+
+		if (ioctl (ofb->port->fd, OMAPFB_SYNC_GFX))
+		{
+			xf86Msg(X_ERROR, "%s: Graphics sync failed\n", __FUNCTION__);
+			return 0;
+		}
+	}
+
+	if (cleanup == TRUE) {
+		if(ioctl(ofb->port->fd, OMAPFB_QUERY_MEM, &ofb->port->mem_info) != 0) {
+			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			           "Failed to fetch memory info\n");
+			return;
+		}
+		ofb->port->mem_info.size = 0;
+		if(ioctl(ofb->port->fd, OMAPFB_SETUP_MEM, &ofb->port->mem_info) != 0) {
+			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			           "Failed to set memory info\n");
+			return;
+		}
+	}
+
+	return Success;
+}
 
