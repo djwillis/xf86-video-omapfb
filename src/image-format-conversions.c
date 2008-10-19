@@ -35,9 +35,9 @@
 void packed_line_copy(int w, int h, int stride, uint8_t *src, uint8_t *dest)
 {
 	int i;
+	int len = w * 2;
 	for (i = 0; i < h; i++)
 	{
-		int len = w * 2;
 		memcpy(dest + i * len, src + i * stride, len);
 	}
 }
