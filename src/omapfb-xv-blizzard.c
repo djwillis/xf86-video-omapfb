@@ -24,6 +24,10 @@
 /*
  * PutImage implementation for the Epson S1D13745 aka Blizzard LCD controller,
  * found on eg. Nokia N8x0
+ *
+ * Known features/limitations:
+ *  - update window size and position must be divisible by 2 in both directions
+ *  -
  */
 
 #include "xf86.h"
@@ -36,6 +40,50 @@
 #include "omapfb-driver.h"
 #include "omapfb-xv-platform.h"
 
+int OMAPFBXVApplyClip(ScrnInfoPtr pScrn, RegionPtr clipBoxes)
+{
+	double xscale, yscale;
+	int xoffset, yoffset;
+	BoxPtr clip;
+	OMAPFBPtr ofb = OMAPFB(pScrn);
+
+	/* We can do rectangular clipping directly on the plane, but complex
+	 * clipping would need colorkeying & overlay windows.
+	 */
+	if (REGION_NUM_RECTS(clipBoxes) > 1)
+		return XvBadAlloc;
+
+	clip = REGION_RECTS(clipBoxes);
+
+	/* Calculate scaling factors for source data */
+	xscale = (double)ofb->port->state_info.xres / (double)ofb->port->plane_info.out_width;
+	yscale = (double)ofb->port->state_info.yres / (double)ofb->port->plane_info.out_height;
+	if (xscale > 1.0)
+		xscale = 1.0;
+	if (yscale > 1.0)
+		yscale = 1.0;
+
+	/* First calculate the output values, clipping is expressed in
+	 * destination pixels.
+	 */
+	xoffset = clip->x1 - ofb->port->plane_info.pos_x;
+	yoffset = clip->y1 - ofb->port->plane_info.pos_y;
+	ofb->port->plane_info.pos_x = clip->x1 & ~1;
+	ofb->port->plane_info.pos_y = clip->y1 & ~1;
+	ofb->port->plane_info.out_width = (clip->x2 - clip->x1) & ~1;
+	ofb->port->plane_info.out_height = (clip->y2 - clip->y1) & ~1;
+
+	/* Calculate visible plane size and offset (the original source size
+	 * is used as the virtual size
+	 */
+	ofb->port->state_info.xoffset = (int)(xoffset * xscale) & ~1;
+	ofb->port->state_info.yoffset = (int)(yoffset * yscale) & ~1;
+	ofb->port->state_info.xres = (int)(ofb->port->plane_info.out_width * xscale) & ~3;
+	ofb->port->state_info.yres = (int)(ofb->port->plane_info.out_height * yscale) & ~3;
+
+	return Success;
+}
+
 /* Blizzard is Epson S1D13745A01, found on eg. Nokia N8x0 */
 int OMAPFBXVPutImageBlizzard (ScrnInfoPtr pScrn,
                               short src_x, short src_y, short drw_x, short drw_y,
@@ -43,7 +91,9 @@ int OMAPFBXVPutImageBlizzard (ScrnInfoPtr pScrn,
                               int image, char *buf, short width, short height,
                               Bool sync, RegionPtr clipBoxes, pointer data)
 {
+	struct omapfb_update_window w;
 	OMAPFBPtr ofb = OMAPFB(pScrn);
+	int do_clip = !REGION_EQUAL(pScrn, &ofb->port->current_clip, clipBoxes);
 
 	if (!ofb->port->plane_info.enabled
 	 || ofb->port->update_window.x != src_x
@@ -54,7 +104,8 @@ int OMAPFBXVPutImageBlizzard (ScrnInfoPtr pScrn,
 	 || ofb->port->update_window.out_x != drw_x
 	 || ofb->port->update_window.out_y != drw_y
 	 || ofb->port->update_window.out_width != drw_w
-	 || ofb->port->update_window.out_height != drw_h)
+	 || ofb->port->update_window.out_height != drw_h
+	 || do_clip)
 	{
 		int ret;
 		
@@ -69,6 +120,24 @@ int OMAPFBXVPutImageBlizzard (ScrnInfoPtr pScrn,
 	 	ofb->port->update_window.out_width = drw_w;
 	 	ofb->port->update_window.out_height = drw_h;
 
+		if (OUTPUT_IS_OFFSCREEN)
+		{
+			xf86Msg(X_NOT_IMPLEMENTED,
+			        "Partially offscreen video not supported yet\n");
+			/* Stop video... */
+			if (ofb->port->plane_info.enabled) {
+				ofb->port->plane_info.enabled = 0;
+				if (ioctl (ofb->port->fd, OMAPFB_SETUP_PLANE, &ofb->port->plane_info)) {
+					xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+					           "Failed to disable video plane\n");
+				}
+			}
+			/* ..but return Success so that clients don't die
+			 * in case this was just a temprorary thing.
+			 */
+			return Success;
+		}
+
 		/* If we don't have the plane running, enable it */
 		if (!ofb->port->plane_info.enabled) {
 			ret = OMAPXVAllocPlane(pScrn);
@@ -79,10 +148,10 @@ int OMAPFBXVPutImageBlizzard (ScrnInfoPtr pScrn,
 		/* Set up the state info, xres and yres will be used for
 		 * scaling to the values in the plane info strurct
 		 */
-		ofb->port->state_info.xres = src_w & ~15;
-		ofb->port->state_info.yres = src_h & ~15;
-		ofb->port->state_info.xres_virtual = 0;
-		ofb->port->state_info.yres_virtual = 0;
+		ofb->port->state_info.xres = src_w & ~3;
+		ofb->port->state_info.yres = src_h & ~3;
+		ofb->port->state_info.xres_virtual = src_w & ~3;
+		ofb->port->state_info.yres_virtual = src_h & ~3;
 		ofb->port->state_info.xoffset = 0;
 		ofb->port->state_info.yoffset = 0;
 		ofb->port->state_info.rotate = 0;
@@ -93,14 +162,43 @@ int OMAPFBXVPutImageBlizzard (ScrnInfoPtr pScrn,
 
 		/* Set up the video plane info */
 		ofb->port->plane_info.enabled = 1;
-		ofb->port->plane_info.pos_x = drw_x;
-		ofb->port->plane_info.pos_y = drw_y;
-		ofb->port->plane_info.out_width = drw_w & ~15;
-		ofb->port->plane_info.out_height = drw_h & ~15;
+		ofb->port->plane_info.pos_x = drw_x & ~1;
+		ofb->port->plane_info.pos_y = drw_y & ~1;
+		ofb->port->plane_info.out_width = drw_w & ~1;
+		ofb->port->plane_info.out_height = drw_h & ~1;
+
+		if (do_clip) {
+			REGION_COPY(pScrn, &ofb->port->current_clip, clipBoxes);
+			ret = OMAPFBXVApplyClip(pScrn, clipBoxes);
+			if (ret != Success) {
+				xf86Msg(X_NOT_IMPLEMENTED,
+				        "Complex clipping of video not supported yet\n");
+				/* Stop video... */
+				if (ofb->port->plane_info.enabled) {
+					ofb->port->plane_info.enabled = 0;
+					if (ioctl (ofb->port->fd, OMAPFB_SETUP_PLANE, &ofb->port->plane_info)) {
+						xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+						           "Failed to disable video plane\n");
+					}
+				}
+				/* ..but return Success so that clients don't die
+				 * in case this was just a temprorary thing.
+				 */
+				return Success;
+			}
+		}
 
 		ret = OMAPXVSetupVideoPlane(pScrn);
 		if (ret != Success)
 			return ret;
+
+		ret = OMAPFB_MANUAL_UPDATE;
+		if (ioctl (ofb->port->fd, OMAPFB_SET_UPDATE_MODE, &ret))
+		{
+			xf86Msg(X_ERROR, "%s: Failed to set manual update mode:"
+			                 " %s\n", __FUNCTION__, strerror(errno));
+			return XvBadAlloc;
+		}
 
 	}
 
@@ -116,8 +214,8 @@ int OMAPFBXVPutImageBlizzard (ScrnInfoPtr pScrn,
 		case FOURCC_YUY2:
 			/* YUY2 is packed like this: [Y1 U | Y2 V] */
 		{
-			packed_line_copy(src_w & ~15,
-			                 src_h & ~15,
+			packed_line_copy(src_w & ~3,
+			                 src_h & ~3,
 			                 ((src_w + 1) & ~1) * 2,
 			                 (uint8_t*)buf,
 			                 (uint8_t*)ofb->port->fb);
@@ -131,16 +229,13 @@ int OMAPFBXVPutImageBlizzard (ScrnInfoPtr pScrn,
 		 * 2x2 pixels on screen
 		 */
 
-		/* TODO: these should convert to the custom format of
-		 * blizzard, since it supports something resembling
-		 * YUV420. Comment excerpt from xomap:
-			 
- * Copy I420 data to the custom 'YUV420' format, which is actually:
- * y11 u11,u12,u21,u22 u13,u14,u23,u24 y12 y14 y13
- * y21 v11,v12,v21,v22 v13,v14,v23,v24 y22 y24 y23
- *
- * The third and fourth luma components are swapped.  Yes, this is weird.
-
+		/* We don't actually support planar formats, as the blizzard
+		 * has (apparently) due to endianness incompatibilities a
+		 * quirky YUV420 format. Fortunately the conversion to packed
+		 * formats is cheap enough to do smooth 512x288@24fps on N800,
+		 * making support for the "custom" format unattractive. That,
+		 * and the fact that I've tried to use it (there's code around
+		 * to do that conversion) and failed :)
 		 */
 
 		case FOURCC_I420:
@@ -149,8 +244,8 @@ int OMAPFBXVPutImageBlizzard (ScrnInfoPtr pScrn,
 			uint8_t *yb = buf;
 			uint8_t *ub = yb + (src_w * src_h);
 			uint8_t *vb = ub + ((src_w / 2) * (src_h / 2));
-			uv12_to_uyvy(src_w & ~15,
-			             src_h & ~15,
+			uv12_to_uyvy(src_w & ~3,
+			             src_h & ~3,
 			             yb, ub, vb,
 			             (uint8_t*)ofb->port->fb);
 			break;
@@ -161,14 +256,31 @@ int OMAPFBXVPutImageBlizzard (ScrnInfoPtr pScrn,
 			uint8_t *yb = buf;
 			uint8_t *vb = yb + (src_w * src_h);
 			uint8_t *ub = vb + ((src_w / 2) * (src_h / 2));
-			uv12_to_uyvy(src_w & ~15,
-			             src_h & ~15,
+			uv12_to_uyvy(src_w & ~3,
+			             src_h & ~3,
 			             yb, ub, vb,
 			             (uint8_t*)ofb->port->fb);
 			break;
 		}
 		default:
 			break;
+	}
+
+	w.x = 0;
+	w.y = 0;
+	w.width = ofb->state_info.xres;
+	w.height = ofb->state_info.yres;
+	w.format = 0;
+	w.out_x = 0;
+	w.out_y = 0;
+	w.out_width = ofb->state_info.xres;
+	w.out_height = ofb->state_info.yres;
+
+	if (ioctl (ofb->fd, OMAPFB_UPDATE_WINDOW, &w))
+	{
+		xf86Msg(X_ERROR, "%s: Failed to update screen:"
+		                 " %s\n", __FUNCTION__, strerror(errno));
+		return XvBadAlloc;
 	}
 
 	if (sync) {
@@ -182,4 +294,87 @@ int OMAPFBXVPutImageBlizzard (ScrnInfoPtr pScrn,
 	return Success;
 }
 
+/* Stop video, only deinit overlay if cleanup is true */
+int OMAPFBXVStopVideoBlizzard (ScrnInfoPtr pScrn, pointer data, Bool cleanup)
+{
+	OMAPFBPtr ofb = OMAPFB(pScrn);
+	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "XV: %s (%i)\n", __FUNCTION__, cleanup);
+
+	if (ofb->port == NULL)
+		return Success;
+
+	if(ofb->port->plane_info.enabled) {
+		int mode;
+		struct omapfb_update_window w;
+		w.x = 0;
+		w.y = 0;
+		w.width = ofb->state_info.xres;
+		w.height = ofb->state_info.yres;
+		w.format = 0;
+		w.out_x = 0;
+		w.out_y = 0;
+		w.out_width = ofb->state_info.xres;
+		w.out_height = ofb->state_info.yres;
+
+		if (ioctl (ofb->port->fd, OMAPFB_SYNC_GFX))
+		{
+			xf86Msg(X_ERROR, "%s: Graphics sync failed\n", __FUNCTION__);
+			return 0;
+		}
+
+		if (ioctl (ofb->fd, OMAPFB_UPDATE_WINDOW, &w))
+		{
+			xf86Msg(X_ERROR, "%s: Failed to update screen:"
+			                 " %s\n", __FUNCTION__, strerror(errno));
+			return XvBadAlloc;
+		}
+
+		mode = OMAPFB_AUTO_UPDATE;
+		if (ioctl (ofb->port->fd, OMAPFB_SET_UPDATE_MODE, &mode))
+		{
+			xf86Msg(X_ERROR, "%s: Failed to set auto update mode:"
+			                 " %s\n", __FUNCTION__, strerror(errno));
+			return XvBadAlloc;
+		}
+
+		if (ioctl (ofb->port->fd, OMAPFB_QUERY_PLANE, &ofb->port->plane_info)) {
+			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			           "Failed to query video plane info\n");
+		}
+
+		/* Disable the video plane */
+		munmap(ofb->port->fb, ofb->port->mem_info.size);
+		ofb->port->plane_info.enabled = 0;
+		if (ioctl (ofb->port->fd, OMAPFB_SETUP_PLANE, &ofb->port->plane_info)) {
+			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			           "Failed to disable video plane\n");
+		}
+		if (ioctl (ofb->port->fd, OMAPFB_QUERY_PLANE, &ofb->port->plane_info)) {
+			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			           "Failed to query video plane info\n");
+		}
+
+		if (ioctl (ofb->port->fd, OMAPFB_SYNC_GFX))
+		{
+			xf86Msg(X_ERROR, "%s: Graphics sync failed\n", __FUNCTION__);
+			return 0;
+		}
+	}
+
+	if (cleanup == TRUE) {
+		if(ioctl(ofb->port->fd, OMAPFB_QUERY_MEM, &ofb->port->mem_info) != 0) {
+			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			           "Failed to fetch memory info\n");
+			return;
+		}
+		ofb->port->mem_info.size = 0;
+		if(ioctl(ofb->port->fd, OMAPFB_SETUP_MEM, &ofb->port->mem_info) != 0) {
+			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			           "Failed to set memory info\n");
+			return;
+		}
+	}
+
+	return Success;
+}
 

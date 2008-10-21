@@ -43,6 +43,7 @@ typedef struct {
 	struct omapfb_caps caps;
 	struct omapfb_plane_info plane_info;
 	struct omapfb_update_window update_window;
+	RegionRec current_clip;
 } OMAPFBPortRec, *OMAPFBPortPtr;
 
 typedef struct {
