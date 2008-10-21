@@ -199,27 +199,7 @@ OMAPFBProbe(DriverPtr drv, int flags)
 			pScrn->EnterVT       = OMAPFBEnterVT;
 			pScrn->LeaveVT       = OMAPFBLeaveVT;
 
-			xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-			           "Plane capabilities:\n%s%s%s%s%s%s%s%s%s",
-	  		         (caps.ctrl & OMAPFB_CAPS_MANUAL_UPDATE) ?
-			             "\tManual updates\n" : "",
-			           (caps.ctrl & OMAPFB_CAPS_TEARSYNC) ?
-			             "\tTearsync\n" : "",
-			           (caps.ctrl & OMAPFB_CAPS_PLANE_RELOCATE_MEM) ?
-			             "\tPlane memory relocation\n" : "",
-			           (caps.ctrl & OMAPFB_CAPS_PLANE_SCALE) ?
-			             "\tPlane scaling\n" : "",
-			           (caps.ctrl & OMAPFB_CAPS_WINDOW_PIXEL_DOUBLE) ?
-			             "\tUpdate window pixel doubling\n" : "",
-			           (caps.ctrl & OMAPFB_CAPS_WINDOW_SCALE) ?
-			             "\tUpdate window scaling\n" : "",
-			           (caps.ctrl & OMAPFB_CAPS_WINDOW_OVERLAY) ?
-			             "\tOverlays\n" : "",
-			           (caps.ctrl & OMAPFB_CAPS_WINDOW_ROTATE) ?
-			             "\tRotation\n" : "",
-			           (caps.ctrl & OMAPFB_CAPS_SET_BACKLIGHT) ?
-			             "\tBacklight control\n" : ""
-			           );
+			OMAPFBPrintCapabilities(pScrn, &caps, "Base plane");
 			
 		} else {
 			xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
@@ -732,6 +712,52 @@ OMAPFBDPMSSet(ScrnInfoPtr pScrn, int mode, int flags)
 			return;
 	}
 
+}
+
+void
+OMAPFBPrintCapabilities(ScrnInfoPtr pScrn,
+                        struct omapfb_caps *caps,
+                        const char *plane_name)
+{
+	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+	           "%s capabilities:\n%s%s%s%s%s%s%s%s%s",
+	           plane_name,
+	           (caps->ctrl & OMAPFB_CAPS_MANUAL_UPDATE) ?
+	             "\tManual updates\n" : "",
+	           (caps->ctrl & OMAPFB_CAPS_TEARSYNC) ?
+	             "\tTearsync\n" : "",
+	           (caps->ctrl & OMAPFB_CAPS_PLANE_RELOCATE_MEM) ?
+	             "\tPlane memory relocation\n" : "",
+	           (caps->ctrl & OMAPFB_CAPS_PLANE_SCALE) ?
+	             "\tPlane scaling\n" : "",
+	           (caps->ctrl & OMAPFB_CAPS_WINDOW_PIXEL_DOUBLE) ?
+	             "\tUpdate window pixel doubling\n" : "",
+	           (caps->ctrl & OMAPFB_CAPS_WINDOW_SCALE) ?
+	             "\tUpdate window scaling\n" : "",
+	           (caps->ctrl & OMAPFB_CAPS_WINDOW_OVERLAY) ?
+	             "\tOverlays\n" : "",
+	           (caps->ctrl & OMAPFB_CAPS_WINDOW_ROTATE) ?
+	             "\tRotation\n" : "",
+	           (caps->ctrl & OMAPFB_CAPS_SET_BACKLIGHT) ?
+	             "\tBacklight control\n" : ""
+	           );
+
+#define MAKE_STR(f) #f
+#define PRINT_FORMAT(f) (caps->plane_color & OMAPFB_COLOR_##f) ? MAKE_STR(\t##f\n) : ""
+
+	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+	           "%s supports the following image formats:\n%s%s%s%s%s%s%s%s%s",
+	           plane_name,
+	           PRINT_FORMAT(RGB565),
+	           PRINT_FORMAT(YUV422),
+	           PRINT_FORMAT(YUV420),
+	           PRINT_FORMAT(CLUT_8BPP),
+	           PRINT_FORMAT(CLUT_4BPP),
+	           PRINT_FORMAT(CLUT_2BPP),
+	           PRINT_FORMAT(CLUT_1BPP),
+	           PRINT_FORMAT(RGB444),
+	           PRINT_FORMAT(YUY422)
+	           );
 }
 
 /*** Unimplemented: */

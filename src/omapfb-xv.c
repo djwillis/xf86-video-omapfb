@@ -306,6 +306,19 @@ int OMAPFBXVInit (ScrnInfoPtr pScrn,
 		return 0;
 	}
 
+{
+	struct omapfb_caps caps;
+
+	if (ioctl (ofb->port->fd, OMAPFB_GET_CAPS, &caps))
+	{
+		OMAPFBPortFreeRec(pScrn);
+		return 0;
+	}
+
+	OMAPFBPrintCapabilities(pScrn, &caps, "Video plane");
+
+}
+
 	adaptor = xf86XVAllocateVideoAdaptorRec(pScrn);
 	if (adaptor == NULL)
 	{

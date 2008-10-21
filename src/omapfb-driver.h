@@ -69,6 +69,10 @@ typedef struct {
 
 #define OMAPFB(p) ((OMAPFBPtr)((p)->driverPrivate))
 
+void OMAPFBPrintCapabilities(ScrnInfoPtr pScrn,
+                             struct omapfb_caps *caps,
+                             const char *plane_name);
+
 Bool OMAPFBSetupExa(OMAPFBPtr ofb);
 int OMAPFBXVInit (ScrnInfoPtr pScrn, XF86VideoAdaptorPtr **omap_adaptors);
 
