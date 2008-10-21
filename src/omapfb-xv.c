@@ -282,11 +282,13 @@ int OMAPFBXVInit (ScrnInfoPtr pScrn,
 	adaptor->PutImage = OMAPFBXVPutImageGeneric;
 	adaptor->StopVideo = OMAPFBXVStopVideoGeneric;
 
-	/* PutImage can have specific requirements for different CPU revisions
-	   and LCD controller chips */
+	/* Allow customized functionality for different CPU revisions
+	 * and LCD controller chips
+	 */
 	if (strncmp(ofb->ctrl_name, "blizzard", 8) == 0) {
 		/* Blizzard is Epson S1D13745A01, found on eg. Nokia N8x0 */
 		adaptor->PutImage = OMAPFBXVPutImageBlizzard;
+		adaptor->StopVideo = OMAPFBXVStopVideoBlizzard;
 	}
 	
 	n_adaptors++;
@@ -307,6 +309,7 @@ OMAPFBPortGetRec(ScrnInfoPtr pScrn)
 	
 	ofb->port = xnfcalloc(sizeof(OMAPFBPortRec), 1);
 	memset(&ofb->port->update_window, 0, sizeof(struct omapfb_update_window));
+	REGION_EMPTY(pScrn, &ofb->port->current_clip);
 
 	return TRUE;
 }
