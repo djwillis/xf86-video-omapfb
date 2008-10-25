@@ -91,7 +91,9 @@ OMAPFBFreeRec(ScrnInfoPtr pScrn)
 /*** General driver section */
 
 static SymTabRec OMAPFBChipsets[] = {
-    { 0, "omapfb" },
+    { 0, "omap1/2/3" },
+    { 1, "S1D13745" },
+    { 2, "HWA742" },
     { -1, NULL }
 };
 
@@ -117,7 +119,8 @@ static void
 OMAPFBIdentify(int flags)
 {
 	xf86PrintChipsets(OMAPFB_NAME,
-	                  "driver for TI OMAP framebuffers",
+	                  "Driver for OMAP framebuffer (omapfb) "
+	                  "and external LCD controllers",
 	                  OMAPFBChipsets);
 }
 
@@ -140,6 +143,43 @@ static const char *exaSymbols[] = {
     "exaWaitSync",
     NULL
 };
+
+static void
+OMAPFBProbeController(char *ctrl_name)
+{
+	int fd;
+	Bool found = FALSE;
+
+/* FIXME: fetch this from hal? */
+#define SYSFS_LCTRL_FILE "/sys/devices/platform/omapfb/ctrl/name"
+
+	/* Try to read the LCD controller name */
+	fd = open(SYSFS_LCTRL_FILE, O_RDONLY, 0);
+	if (fd == -1) {
+		xf86Msg(X_WARNING, "Error opening %s: %s\n",
+		        SYSFS_LCTRL_FILE, strerror(errno));
+	} else {
+		int s = read(fd, ctrl_name, 31);
+		if (s > 0)
+		{
+			ctrl_name[s-1] = '\0';
+			found = TRUE;
+		} else {
+			xf86Msg(X_WARNING, "Error reading from %s: %s\n",
+				SYSFS_LCTRL_FILE, strerror(errno));
+		}
+		close(fd);
+	}
+
+	/* Fall back to "internal" as controller */
+	if (!found) {
+		xf86Msg(X_WARNING,
+			"Can't autodetect LCD controller, assuming internal\n");
+		strcpy(ctrl_name, "internal");
+	}
+
+	xf86Msg(X_INFO, "LCD controller: %s\n", ctrl_name);
+}
 
 static Bool
 OMAPFBProbe(DriverPtr drv, int flags)
@@ -165,29 +205,40 @@ OMAPFBProbe(DriverPtr drv, int flags)
 		int fd;
 		
 		/* Fetch the device path */
-		dev = xf86FindOptionValue(devSections[i]->options,"fb");
+		dev = xf86FindOptionValue(devSections[i]->options, "fb");
 
 		/* Try opening it to see if we can access it */
 		fd = open(dev != NULL ? dev : DEFAULT_DEVICE, O_RDWR, 0);
-		if (fd > 0)
-		{
+		if (fd > 0) {
 			int entity;
-			struct omapfb_caps caps;
+			struct fb_fix_screeninfo info;
 
-			if (ioctl (fd, OMAPFB_GET_CAPS, &caps))
-			{
-				/* This wasn't an OMAP framebuffer */
+			if (ioctl (fd, FBIOGET_FSCREENINFO, &info)) {
+				xf86Msg(X_WARNING,
+				        "%s: Reading hardware info failed: %s\n",
+				        __FUNCTION__, strerror(errno));
 				close(fd);
 				continue;
 			}
-				
 			close(fd);
+
+			/* We only check that the platform driver is correct
+			 * here, detecting LCD controller and other capabilities
+			 * are probed for in PreInit
+			 */
+			if (strcmp(info.id, "omapfb")) {
+				xf86Msg(X_WARNING,
+				        "%s: Not an omapfb device: %s\n",
+				        __FUNCTION__, info.id);
+				continue;
+			}
+
 			foundScreen = TRUE;
 
 			/* Tell the rest of the drivers that this one is ours */
 			entity = xf86ClaimFbSlot(drv, 0, devSections[i], TRUE);
 			pScrn = xf86ConfigFbEntity(pScrn, 0, entity,
-				NULL, NULL, NULL, NULL);
+			                           NULL, NULL, NULL, NULL);
 
 			pScrn->driverVersion = OMAPFB_VERSION;
 			pScrn->driverName    = OMAPFB_NAME;
@@ -199,11 +250,9 @@ OMAPFBProbe(DriverPtr drv, int flags)
 			pScrn->EnterVT       = OMAPFBEnterVT;
 			pScrn->LeaveVT       = OMAPFBLeaveVT;
 
-			OMAPFBPrintCapabilities(pScrn, &caps, "Base plane");
-			
 		} else {
 			xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
-				"Couldn't open '%s': %s",
+				"Could not open '%s': %s",
 				dev ? dev : DEFAULT_DEVICE, strerror(errno));
 		}
 
@@ -222,6 +271,8 @@ OMAPFBPreInit(ScrnInfoPtr pScrn, int flags)
 	int fd;
 	char *dev;
 	rgb zeros = { 0, 0, 0 };
+	struct omapfb_caps caps;
+	char ctrl_name[32];
 
 	if (flags & PROBE_DETECT) return FALSE;
 	
@@ -243,57 +294,54 @@ OMAPFBPreInit(ScrnInfoPtr pScrn, int flags)
 	ofb->fd = open(dev != NULL ? dev : DEFAULT_DEVICE, O_RDWR, 0);
 	if (ofb->fd == -1)
 	{
-		xf86Msg(X_ERROR, "%s: Opening '%s' failed: %s\n", __FUNCTION__,
-			dev != NULL ? dev : DEFAULT_DEVICE, strerror(errno));
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+		           "%s: Opening '%s' failed: %s\n", __FUNCTION__,
+		           dev != NULL ? dev : DEFAULT_DEVICE, strerror(errno));
 		OMAPFBFreeRec(pScrn);
 		return FALSE;
 	}
 
 	if (ioctl (ofb->fd, FBIOGET_FSCREENINFO, &ofb->fixed_info))
 	{
-		xf86Msg(X_ERROR, "%s: Reading hardware info failed\n", __FUNCTION__);
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+		           "%s: Reading hardware info failed: %s\n",
+		           __FUNCTION__, strerror(errno));
 		OMAPFBFreeRec(pScrn);
 		return FALSE;
 	}
 
 	/* Try to detect what LCD controller we're using */
+	OMAPFBProbeController(ofb->ctrl_name);
 
-/* FIXME: fetch this from hal? */
-#define SYSFS_LCTRL_FILE "/sys/devices/platform/omapfb/ctrl/name"
-
-	fd = open(SYSFS_LCTRL_FILE, O_RDONLY, 0);
-	if (fd == -1) {
-		xf86Msg(X_WARNING, "Error opening %s: %s\n",
-		SYSFS_LCTRL_FILE, strerror(errno));
-	} else {
-		int s = read(fd, ofb->ctrl_name, 31);
-		close(fd);
-		if (s > 0)
-		{
-			ofb->ctrl_name[s-1] = '\0';
-		} else {
-			fd = -1;
-			xf86Msg(X_WARNING, "Error reading from %s: %s\n",
-				SYSFS_LCTRL_FILE, strerror(errno));
-		}
+	/* Print out capabilities, if available */
+	if (!ioctl (fd, OMAPFB_GET_CAPS, &caps)) {
+		OMAPFBPrintCapabilities(pScrn, &caps,
+		                        "Base plane");
 	}
 
-	if (fd == -1) {
-		xf86Msg(X_WARNING,
-			"Can't autodetect LCD controller, assuming dispc\n");
-		strcpy(ofb->ctrl_name, "internal");
+	/* Check the memory setup. */
+	if (ioctl (ofb->fd, OMAPFB_QUERY_MEM, &ofb->mem_info))
+	{
+		/* As a fallback, set up the mem_info struct from info we know */
+		ofb->mem_info.type = OMAPFB_MEMTYPE_SDRAM;
+		ofb->mem_info.size = ofb->fixed_info.smem_len;
 	}
 
-	xf86Msg(X_INFO, "LCD controller: %s\n", ofb->ctrl_name);
+	pScrn->videoRam  = ofb->fixed_info.smem_len;
+	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "VideoRAM: %iKiB (%s)\n",
+	           pScrn->videoRam/1024,
+	           ofb->mem_info.type == OMAPFB_MEMTYPE_SDRAM ? "SDRAM" : "SRAM");
 
 	if (ioctl (ofb->fd, FBIOGET_VSCREENINFO, &ofb->state_info))
 	{
-		xf86Msg(X_ERROR, "%s: Reading screen state info failed\n", __FUNCTION__);
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+		           "%s: Reading screen state info failed: %s\n",
+		           __FUNCTION__, strerror(errno));
 		OMAPFBFreeRec(pScrn);
 		return FALSE;
 	}
 	
-	/* We only support 16 bpp, as does the driver AFAIK */
+	/* We only support 16 bpp currently */
 	if (!xf86SetDepthBpp(pScrn, 16, 16, 16, 0))
 		return FALSE;
 
@@ -318,19 +366,6 @@ OMAPFBPreInit(ScrnInfoPtr pScrn, int flags)
 	pScrn->progClock = TRUE;
 	pScrn->chipset   = "omapfb";
 	
-	if (ioctl (ofb->fd, OMAPFB_QUERY_MEM, &ofb->mem_info))
-	{
-		xf86Msg(X_ERROR, "%s: Reading memory info failed\n", __FUNCTION__);
-		OMAPFBFreeRec(pScrn);
-		return FALSE;
-	}
-	
-	/* TODO: should we use mem_info.size or not? */
-	pScrn->videoRam  = ofb->fixed_info.smem_len;
-	xf86Msg(X_INFO, "VideoRAM: %iKiB (%s)\n",
-		pScrn->videoRam/1024,
-		ofb->mem_info.type == OMAPFB_MEMTYPE_SDRAM ? "SDRAM" : "SRAM");
-
 	/* Start with configured virtual size */
 	pScrn->virtualX = pScrn->display->virtualX;
 	pScrn->virtualY = pScrn->display->virtualY;
@@ -520,18 +555,23 @@ OMAPFBScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	/* Make sure the plane is up and running */
 	if (ioctl (ofb->fd, OMAPFB_QUERY_PLANE, &ofb->plane_info))
 	{
-		xf86Msg(X_ERROR, "%s: Reading plane info failed\n", __FUNCTION__);
-		return FALSE;
-	}
+		/* This is non-fatal since we might be running against older
+		 * kernel driver in which case we only do basic 2D stuff...
+		 */
+		xf86DrvMsg(scrnIndex, X_ERROR, "Reading plane info failed\n");
+	} else {
 
-	ofb->plane_info.enabled = 1;
-	ofb->plane_info.out_width = ofb->state_info.xres;
-	ofb->plane_info.out_height = ofb->state_info.yres;
+		ofb->plane_info.enabled = 1;
+		ofb->plane_info.out_width = ofb->state_info.xres;
+		ofb->plane_info.out_height = ofb->state_info.yres;
 
-	if (ioctl (ofb->fd, OMAPFB_SETUP_PLANE, &ofb->plane_info))
-	{
-		xf86Msg(X_ERROR, "%s: Plane setup failed\n", __FUNCTION__);
-		return FALSE;
+		if (ioctl (ofb->fd, OMAPFB_SETUP_PLANE, &ofb->plane_info))
+		{
+			xf86DrvMsg(scrnIndex, X_ERROR,
+			            "%s: Plane setup failed: %s\n",
+			            __FUNCTION__, strerror(errno));
+			return FALSE;
+		}
 	}
 
 	if (ioctl(ofb->fd, FBIOBLANK, (void *)VESA_NO_BLANKING)) {
@@ -545,11 +585,11 @@ OMAPFBScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	/* Setup DPMS support */
 	xf86DPMSInit(pScreen, OMAPFBDPMSSet, 0);
 	
+#ifdef USE_EXA
 	/* EXA init */
 	xf86LoadSubModule(pScrn, "exa");
 	xf86LoaderReqSymLists(exaSymbols, NULL);
 
-#ifdef USE_EXA
 	/* TODO: This should depend on the AccelMethod option */
 	ofb->exa = exaDriverAlloc();
 	if (OMAPFBSetupExa(ofb))
@@ -636,28 +676,6 @@ setup_default_mode(OMAPFBPtr ofb)
 	ofb->default_mode.CrtcVAdjusted = FALSE;
 }
 
-static void
-setup_scaling(OMAPFBPtr ofb, int sub_width, int sub_height)
-{
-	struct omapfb_update_window uw;
-	
-	uw.x = 0;
-	uw.y = 0;
-	uw.width = sub_width;
-	uw.height = sub_height;
-	uw.format = 0;
-	uw.out_x = 0;
-	uw.out_y = 0;
-	uw.out_width = ofb->plane_info.out_width;
-	uw.out_height = ofb->plane_info.out_width;
-
-	if (ioctl (ofb->fd, OMAPFB_UPDATE_WINDOW, &uw))
-	{
-		xf86Msg(X_ERROR, "%s: Update window setup failed\n", __FUNCTION__);
-	}
-	
-}
-
 static Bool OMAPFBSwitchMode(int scrnIndex, DisplayModePtr mode, int flags)
 {
 	ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
@@ -665,7 +683,9 @@ static Bool OMAPFBSwitchMode(int scrnIndex, DisplayModePtr mode, int flags)
 
 	if (!set_mode(ofb, mode))
 	{
-		xf86Msg(X_ERROR, "Setting display mode failed\n");
+		xf86DrvMsg(scrnIndex, X_ERROR,
+		           "%s: Setting display mode failed: %s\n",
+		           __FUNCTION__, strerror(errno));
 		/* Restore the default mode as a fallback
 		 * TODO: should we do this or does X do it for us?
 		 */
@@ -674,7 +694,9 @@ static Bool OMAPFBSwitchMode(int scrnIndex, DisplayModePtr mode, int flags)
 
 	if (ioctl (ofb->fd, FBIOGET_VSCREENINFO, &ofb->state_info))
 	{
-		xf86Msg(X_ERROR, "%s: Reading screen state info failed\n", __FUNCTION__);
+		xf86DrvMsg(scrnIndex, X_ERROR,
+		           "%s: Reading screen state info failed: %s\n",
+		           __FUNCTION__, strerror(errno));
 		return FALSE;
 	}
 
@@ -700,8 +722,12 @@ OMAPFBDPMSSet(ScrnInfoPtr pScrn, int mode, int flags)
 			break;
 		case DPMSModeStandby:
 		case DPMSModeSuspend:
+			/* TODO: Maybe we would want to use the above modes for
+			 * dimming the LCD? That'd match the functionality
+			 * (save power)
+			 */
 		case DPMSModeOff:
-			/* OMAP fb only supports on and off */
+			/* OMAPFB only supports on and off */
 			if (ioctl(ofb->fd, FBIOBLANK, (void *)VESA_POWERDOWN)) {
 				xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 				           "FBIOBLANK: %s\n", strerror(errno));
@@ -778,7 +804,7 @@ OMAPFBLeaveVT(int scrnIndex, int flags)
 static Bool
 OMAPFBSaveScreen(ScreenPtr pScreen, int mode)
 {
-	xf86Msg(X_NOT_IMPLEMENTED, "%s\n", __FUNCTION__);
+	xf86Msg(X_NOT_IMPLEMENTED, "%s: Dim backlight?\n", __FUNCTION__);
 	return TRUE;
 }
 
