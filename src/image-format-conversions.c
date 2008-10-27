@@ -1,6 +1,7 @@
 /* Image format conversions
  * Copyright 2008 Kalle Vahlman, <zuh@iki.fi>
  *                Ilpo Ruotsalainen, <lonewolf@iki.fi>
+ *                Tuomas Kulve, <tuomas.kulve@movial.com>
  *                
  *
  * Permission to use, copy, modify, distribute and sell this software and its
@@ -43,14 +44,15 @@ void packed_line_copy(int w, int h, int stride, uint8_t *src, uint8_t *dest)
 }
 
 /* Basic C implementation of YV12/I420 to UYVY conversion */
-void uv12_to_uyvy(int w, int h, uint8_t *y_p, uint8_t *u_p, uint8_t *v_p, uint8_t *dest)
+void uv12_to_uyvy(int w, int h, int y_pitch, int uv_pitch, uint8_t *y_p, uint8_t *u_p, uint8_t *v_p, uint8_t *dest)
 {
 	int x, y;
 	uint8_t *dest_even = dest;
 	uint8_t *dest_odd = dest + w * 2;
 	uint8_t *y_p_even = y_p;
-	uint8_t *y_p_odd = y_p + w;
+	uint8_t *y_p_odd = y_p + y_pitch;
 
+	/*ErrorF("in uv12_to_uyvy, w: %d, pitch: %d\n", w, pitch);*/
 	for (y=0; y<h; y+=2)
 	{
 		for (x=0; x<w; x+=2)
@@ -79,8 +81,11 @@ void uv12_to_uyvy(int w, int h, uint8_t *y_p, uint8_t *u_p, uint8_t *v_p, uint8_
 		dest_even += w * 2;
 		dest_odd += w * 2;
 
-		y_p_even += w;
-		y_p_odd += w;
+		u_p += ((uv_pitch << 1) - w) >> 1;
+		v_p += ((uv_pitch << 1) - w) >> 1;
+
+		y_p_even += (y_pitch - w) + y_pitch;
+		y_p_odd += (y_pitch - w) + y_pitch;
 	}
 }
 
