@@ -251,9 +251,8 @@ OMAPFBProbe(DriverPtr drv, int flags)
 			pScrn->LeaveVT       = OMAPFBLeaveVT;
 
 		} else {
-			xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
-				"Could not open '%s': %s",
-				dev ? dev : DEFAULT_DEVICE, strerror(errno));
+			xf86Msg(X_WARNING, "Could not open '%s': %s",
+			        dev ? dev : DEFAULT_DEVICE, strerror(errno));
 		}
 
 	}
