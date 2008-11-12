@@ -615,6 +615,8 @@ set_mode(OMAPFBPtr ofb, DisplayModePtr mode)
 {
 	struct fb_var_screeninfo var;
 	
+	var = ofb->state_info;
+
 	var.xres = mode->HDisplay;
 	var.yres = mode->VDisplay;
 	if (var.xres_virtual < var.xres)
@@ -630,8 +632,20 @@ set_mode(OMAPFBPtr ofb, DisplayModePtr mode)
 	var.vsync_len = mode->VSyncEnd - mode->VSyncStart;
 	var.upper_margin = mode->VTotal - mode->VSyncEnd;
 	var.sync = 0;
+	var.bits_per_pixel = 16;
+	var.grayscale = 0;
+	var.nonstd = 0;
+	var.accel_flags = 0;
+	var.activate = FB_ACTIVATE_NOW;
+	var.rotate = FB_ROTATE_UR;
+	var.vmode = FB_VMODE_NONINTERLACED;
 
 	if (ioctl (ofb->fd, FBIOPUT_VSCREENINFO, &var))
+	{
+		return FALSE;
+	}
+
+	if (ioctl (ofb->fd, FBIOGET_VSCREENINFO, &ofb->state_info))
 	{
 		return FALSE;
 	}
