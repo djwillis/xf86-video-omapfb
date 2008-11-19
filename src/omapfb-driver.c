@@ -384,7 +384,7 @@ OMAPFBPreInit(ScrnInfoPtr pScrn, int flags)
 
 	pScrn->maxVValue = ofb->state_info.xres;
 	pScrn->maxHValue = ofb->state_info.yres;
-	
+
 	/* Setup default mode as the mode the fb is in on startup, *usually*
 	 * it'll be the one we want anyway
 	 */
@@ -509,7 +509,7 @@ OMAPFBScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	if (!fbScreenInit(pScreen, ofb->fb, pScrn->virtualX,
 	                  pScrn->virtualY, pScrn->xDpi,
 	                  pScrn->yDpi, pScrn->displayWidth,
-                          pScrn->bitsPerPixel)) {
+	                  pScrn->bitsPerPixel)) {
 		xf86DrvMsg(scrnIndex, X_ERROR, "fbScreenInit failed\n");
 		return FALSE;
 	}
@@ -713,7 +713,6 @@ static Bool OMAPFBSwitchMode(int scrnIndex, DisplayModePtr mode, int flags)
 		return FALSE;
 	}
 
-	
 	/* TODO: If we support scaling, setup the update window to do it
 	 * This needs the manual updates mode to be done.
 	 */
