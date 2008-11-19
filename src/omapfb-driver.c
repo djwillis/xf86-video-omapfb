@@ -613,6 +613,7 @@ OMAPFBScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 static Bool
 set_mode(OMAPFBPtr ofb, DisplayModePtr mode)
 {
+#ifdef ENFORCE_MODES
 	struct fb_var_screeninfo var;
 	
 	var = ofb->state_info;
@@ -649,6 +650,7 @@ set_mode(OMAPFBPtr ofb, DisplayModePtr mode)
 	{
 		return FALSE;
 	}
+#endif
 
 	return TRUE;
 }
@@ -676,7 +678,9 @@ setup_default_mode(OMAPFBPtr ofb)
 	                             + ofb->state_info.vsync_len;
 	ofb->default_mode.VTotal =   ofb->default_mode.VSyncEnd
 	                           + ofb->state_info.upper_margin;
-	ofb->default_mode.SynthClock = ofb->default_mode.Clock;
+	ofb->default_mode.SynthClock = ofb->state_info.pixclock
+	                               ? 1000000000 / ofb->state_info.pixclock
+	                               : 28000000;
 	ofb->default_mode.CrtcHDisplay = ofb->default_mode.HDisplay;
 	ofb->default_mode.CrtcHSyncStart = ofb->default_mode.HSyncStart;
 	ofb->default_mode.CrtcHSyncEnd = ofb->default_mode.HSyncEnd;
