@@ -127,11 +127,6 @@ int OMAPFBXVQueryImageAttributes (ScrnInfoPtr pScrn,
 	int tmp = 0;
 	OMAPFBPtr ofb = OMAPFB(pScrn);
 
-	if (*width > ofb->state_info.xres)
-		*width = ofb->state_info.xres;
-	if (*height > ofb->state_info.xres)
-		*height = ofb->state_info.yres;
-
 	w = *width;
 	h = *height;
 

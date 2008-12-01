@@ -190,6 +190,16 @@ int OMAPFBXVPutImageGeneric (ScrnInfoPtr pScrn,
 		ofb->port->plane_info.out_width = drw_w & ~15;
 		ofb->port->plane_info.out_height = drw_h & ~15;
 
+		/* Cap output to screen size */
+		if (ofb->port->plane_info.out_width > ofb->state_info.xres) {
+			ofb->port->plane_info.pos_x = 0;
+			ofb->port->plane_info.out_width = ofb->state_info.xres;
+		}
+		if (ofb->port->plane_info.out_height > ofb->state_info.yres) {
+			ofb->port->plane_info.pos_y = 0;
+			ofb->port->plane_info.out_height = ofb->state_info.yres;
+		}
+
 		ret = OMAPXVSetupVideoPlane(pScrn);
 		if (ret != Success)
 			return ret;
