@@ -349,8 +349,6 @@ OMAPFBPreInit(ScrnInfoPtr pScrn, int flags)
 
 	xf86PrintDepthBpp(pScrn);
 
-	pScrn->rgbBits = 8;
-
 	/* This apparently sets the color weights. We're feeding it zeros. */
 	if (!xf86SetWeight(pScrn, zeros, zeros)) {
             return FALSE;
