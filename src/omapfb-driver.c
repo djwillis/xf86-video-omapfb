@@ -340,8 +340,11 @@ OMAPFBPreInit(ScrnInfoPtr pScrn, int flags)
 		return FALSE;
 	}
 	
-	/* We only support 16 bpp currently */
-	if (!xf86SetDepthBpp(pScrn, 16, 16, 16, 0))
+	if (!xf86SetDepthBpp(pScrn,
+			     0, /* depth: overall server default */
+			     ofb->state_info.bits_per_pixel,
+			     ofb->state_info.bits_per_pixel,
+			     0))
 		return FALSE;
 
 	xf86PrintDepthBpp(pScrn);
