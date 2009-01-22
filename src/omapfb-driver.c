@@ -226,7 +226,8 @@ OMAPFBProbe(DriverPtr drv, int flags)
 			 * here, detecting LCD controller and other capabilities
 			 * are probed for in PreInit
 			 */
-			if (strcmp(info.id, "omapfb")) {
+			if (strcmp(info.id, "omapfb") &&
+				strcmp(info.id, "omap24xxfb")) {
 				xf86Msg(X_WARNING,
 				        "%s: Not an omapfb device: %s\n",
 				        __FUNCTION__, info.id);
