@@ -48,8 +48,10 @@ static XF86VideoEncodingRec xv_encodings[] = {
     { 0, "XV_IMAGE", -1, -1, { 1, 1 } },
 };
 
-static XF86VideoFormatRec xv_formats[] = {
+#define OMAPFB_XV_FORMAT_COUNT 2
+static XF86VideoFormatRec xv_formats[OMAPFB_XV_FORMAT_COUNT] = {
     { 16, TrueColor },
+    { 24, TrueColor },
 };
 
 static XF86ImageRec xv_images[] = {
@@ -272,7 +274,7 @@ int OMAPFBXVInit (ScrnInfoPtr pScrn,
 	adaptor->name = xstrdup(name);
 	adaptor->nEncodings = 1;
 	adaptor->pEncodings = xv_encodings;
-	adaptor->nFormats = 1;
+	adaptor->nFormats = OMAPFB_XV_FORMAT_COUNT;
 	adaptor->pFormats = xv_formats;
 	adaptor->nPorts = 1;
 	/* Place per-port data here */
