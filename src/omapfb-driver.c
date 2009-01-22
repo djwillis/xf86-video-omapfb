@@ -443,12 +443,9 @@ OMAPFBXvScreenInit(ScreenPtr pScreen)
 		n = n + on;
 	}
 
-	if (n) {
-		if (!xf86XVScreenInit(pScreen, ptr, n)) {
-			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-			           "XVScreenInit failed\n");
-		} else {
-		}
+	if (n == 0 || !xf86XVScreenInit(pScreen, ptr, n)) {
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "XVScreenInit failed\n");
+		return;
 	}
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "XVideo extension initialized\n");
 }
