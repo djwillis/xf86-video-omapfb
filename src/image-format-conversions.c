@@ -55,7 +55,6 @@ void uv12_to_uyvy(int w, int h, int y_pitch, int uv_pitch, uint8_t *y_p, uint8_t
 	uint8_t *y_p_even = y_p;
 	uint8_t *y_p_odd = y_p + y_pitch;
 
-	/*ErrorF("in uv12_to_uyvy, w: %d, pitch: %d\n", w, pitch);*/
 	for (y=0; y<h; y+=2)
 	{
 		for (x=0; x<w; x+=2)
@@ -102,7 +101,6 @@ void uv12_to_uyvy_neon(int w, int h, int y_pitch, int uv_pitch, uint8_t *y_p, ui
     uint8_t *y_p_even = y_p;
     uint8_t *y_p_odd = y_p + y_pitch;
 
-    /*ErrorF("in uv12_to_uyvy, w: %d, pitch: %d\n", w, pitch);*/
     if (w<16)
     {
         for (y=0; y<h; y+=2)
