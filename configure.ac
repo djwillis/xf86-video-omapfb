@@ -56,6 +56,17 @@ XORG_DRIVER_CHECK_EXT(RENDER, renderproto)
 PKG_CHECK_MODULES(XORG, [xorg-server >= 1.0.99.901 xproto fontsproto $REQUIRED_MODULES])
 sdkdir=$(pkg-config --variable=sdkdir xorg-server)
 
+# Enable option for NEON, defaults to off
+AC_ARG_ENABLE(neon,
+        AC_HELP_STRING([--enable-neon], [Enable NEON optimizations]),
+        [
+                if test "x$enableval" = "xyes"; then
+                        AC_DEFINE(HAVE_NEON,, Use NEON)
+                        AC_MSG_NOTICE(Enabling NEON)
+                fi
+        ],
+)
+
 # Checks for libraries.
 
 # Checks for header files.
