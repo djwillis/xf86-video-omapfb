@@ -94,8 +94,7 @@ void uv12_to_uyvy(int w, int h, int y_pitch, int uv_pitch, uint8_t *y_p, uint8_t
 
 #ifdef HAVE_NEON
 
-void uv12_to_uyvy_neon(int w, int h, int y_pitch, int uv_pitch, uint8_t *y_p, uint8_t 
-*u_p, uint8_t *v_p, uint8_t *dest)
+void uv12_to_uyvy_neon(int w, int h, int y_pitch, int uv_pitch, uint8_t *y_p, uint8_t *u_p, uint8_t *v_p, uint8_t *dest)
 {
     int x, y;
     uint8_t *dest_even = dest;
