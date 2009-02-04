@@ -46,6 +46,8 @@ void packed_line_copy(int w, int h, int stride, uint8_t *src, uint8_t *dest)
 	}
 }
 
+#ifndef HAVE_NEON
+
 /* Basic C implementation of YV12/I420 to UYVY conversion */
 void uv12_to_uyvy(int w, int h, int y_pitch, int uv_pitch, uint8_t *y_p, uint8_t *u_p, uint8_t *v_p, uint8_t *dest)
 {
@@ -91,9 +93,11 @@ void uv12_to_uyvy(int w, int h, int y_pitch, int uv_pitch, uint8_t *y_p, uint8_t
 	}
 }
 
+#endif /* ! HAVE_NEON */
+
 #ifdef HAVE_NEON
 
-void uv12_to_uyvy_neon(int w, int h, int y_pitch, int uv_pitch, uint8_t *y_p, uint8_t *u_p, uint8_t *v_p, uint8_t *dest)
+void uv12_to_uyvy(int w, int h, int y_pitch, int uv_pitch, uint8_t *y_p, uint8_t *u_p, uint8_t *v_p, uint8_t *dest)
 {
     int x, y;
     uint8_t *dest_even = dest;

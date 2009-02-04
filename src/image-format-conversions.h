@@ -30,10 +30,5 @@ void packed_line_copy(int w, int h, int stride, uint8_t *src, uint8_t *dest);
 /* Basic C implementation of YV12/I420 to UYVY conversion */
 void uv12_to_uyvy(int w, int h, int y_pitch, int uv_pitch, uint8_t *y_p, uint8_t *u_p, uint8_t *v_p, uint8_t *dest);
 
-#ifdef HAVE_NEON
-/* NEON implementation of YV12/I420 to UYVY conversion */
-void uv12_to_uyvy_neon(int w, int h, int y_pitch, int uv_pitch, uint8_t *y_p, uint8_t *u_p, uint8_t *v_p, uint8_t *dest);
-#endif
-
 #endif /* __IMAGE_FORMAT_CONVERSIONS_H__ */
 
