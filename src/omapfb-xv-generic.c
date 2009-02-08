@@ -242,8 +242,8 @@ int OMAPFBXVPutImageGeneric (ScrnInfoPtr pScrn,
 			uint8_t *vb = ub + (src_uv_pitch * (src_h / 2));
 			uv12_to_uyvy(src_w & ~15,
 			             src_h & ~15,
-				     src_y_pitch,
-				     src_uv_pitch,
+			             src_y_pitch,
+			             src_uv_pitch,
 			             yb, ub, vb,
 			             (uint8_t*)ofb->port->fb);
 			break;
@@ -258,8 +258,8 @@ int OMAPFBXVPutImageGeneric (ScrnInfoPtr pScrn,
 			uint8_t *ub = vb + (src_uv_pitch * (src_h / 2));
 			uv12_to_uyvy(src_w & ~15,
 			             src_h & ~15,
-				     src_y_pitch,
-				     src_uv_pitch,
+			             src_y_pitch,
+			             src_uv_pitch,
 			             yb, ub, vb,
 			             (uint8_t*)ofb->port->fb);
 			break;

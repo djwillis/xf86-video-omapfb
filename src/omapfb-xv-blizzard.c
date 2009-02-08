@@ -241,11 +241,15 @@ int OMAPFBXVPutImageBlizzard (ScrnInfoPtr pScrn,
 		case FOURCC_I420:
 			/* I420 has plane order Y, U, V */
 		{
+			int src_y_pitch = (src_w + 3) & ~3;
+			int src_uv_pitch = (((src_y_pitch >> 1) + 3) & ~3);
 			uint8_t *yb = buf;
-			uint8_t *ub = yb + (src_w * src_h);
-			uint8_t *vb = ub + ((src_w / 2) * (src_h / 2));
+			uint8_t *ub = yb + (src_y_pitch * src_h);
+			uint8_t *vb = ub + (src_uv_pitch * (src_h / 2));
 			uv12_to_uyvy(src_w & ~3,
 			             src_h & ~3,
+			             src_y_pitch,
+			             src_uv_pitch,
 			             yb, ub, vb,
 			             (uint8_t*)ofb->port->fb);
 			break;
@@ -253,15 +257,20 @@ int OMAPFBXVPutImageBlizzard (ScrnInfoPtr pScrn,
 		case FOURCC_YV12:
 			/* YV12 has plane order Y, V, U */
 		{
+			int src_y_pitch = (src_w + 3) & ~3;
+			int src_uv_pitch = (((src_y_pitch >> 1) + 3) & ~3);
 			uint8_t *yb = buf;
-			uint8_t *vb = yb + (src_w * src_h);
-			uint8_t *ub = vb + ((src_w / 2) * (src_h / 2));
+			uint8_t *vb = yb + (src_y_pitch * src_h);
+			uint8_t *ub = vb + (src_uv_pitch * (src_h / 2));
 			uv12_to_uyvy(src_w & ~3,
 			             src_h & ~3,
+			             src_y_pitch,
+			             src_uv_pitch,
 			             yb, ub, vb,
 			             (uint8_t*)ofb->port->fb);
 			break;
 		}
+
 		default:
 			break;
 	}
