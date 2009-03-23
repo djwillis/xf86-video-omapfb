@@ -24,6 +24,8 @@
 #ifndef __IMAGE_FORMAT_CONVERSIONS_H__
 #define __IMAGE_FORMAT_CONVERSIONS_H__
 
+#include <stdint.h>
+
 /* Basic line-based copy for packed formats */
 void packed_line_copy(int w, int h, int stride, uint8_t *src, uint8_t *dest);
 

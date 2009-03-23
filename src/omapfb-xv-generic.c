@@ -31,6 +31,7 @@
 #include "fourcc.h"
 
 #include <X11/extensions/Xv.h>
+#include <stdint.h>
 
 #include "omapfb-driver.h"
 #include "omapfb-xv-platform.h"
