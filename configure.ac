@@ -22,7 +22,7 @@
 
 AC_PREREQ(2.57)
 AC_INIT([xf86-video-omapfb],
-        0.1.0,
+        0.1.1,
         [],
         xf86-video-omapfb)
 
