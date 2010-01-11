@@ -124,26 +124,6 @@ OMAPFBIdentify(int flags)
 	                  OMAPFBChipsets);
 }
 
-static const char *fbSymbols[] = {
-	"fbScreenInit",
-	"fbPictureInit",
-	NULL
-};
-
-static const char *exaSymbols[] = {
-    "exaDriverAlloc",
-    "exaDriverInit",
-    "exaDriverFini",
-    "exaOffscreenAlloc",
-    "exaOffscreenFree",
-    "exaGetPixmapOffset",
-    "exaGetPixmapPitch",
-    "exaGetPixmapSize",
-    "exaMarkSync",
-    "exaWaitSync",
-    NULL
-};
-
 static void
 OMAPFBProbeController(char *ctrl_name)
 {
@@ -502,7 +482,6 @@ OMAPFBScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 
 	/* Load the fallback module */
 	xf86LoadSubModule(pScrn, "fb");
-	xf86LoaderReqSymLists(fbSymbols, NULL);
 
 	/* Initialize fallbacks for the screen */
 	if (!fbScreenInit(pScreen, ofb->fb, pScrn->virtualX,
@@ -586,7 +565,6 @@ OMAPFBScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 #ifdef USE_EXA
 	/* EXA init */
 	xf86LoadSubModule(pScrn, "exa");
-	xf86LoaderReqSymLists(exaSymbols, NULL);
 
 	/* TODO: This should depend on the AccelMethod option */
 	ofb->exa = exaDriverAlloc();
@@ -879,7 +857,6 @@ OMAPFBSetup(pointer module, pointer opts, int *errmaj, int *errmin)
 	if (!setupDone) {
 		setupDone = TRUE;
 		xf86AddDriver(&OMAPFB, module, HaveDriverFuncs);
-		LoaderRefSymLists(fbSymbols, NULL);
 		return (pointer)1;
 	} else {
 		if (errmaj) *errmaj = LDR_ONCEONLY;
