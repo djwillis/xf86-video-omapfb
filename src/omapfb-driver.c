@@ -789,7 +789,7 @@ static Bool
 OMAPFBEnterVT(int scrnIndex, int flags)
 {
 	xf86Msg(X_NOT_IMPLEMENTED, "%s\n", __FUNCTION__);
-	return FALSE;
+	return TRUE;
 }
 
 static void
