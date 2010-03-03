@@ -144,8 +144,7 @@ OMAPFBProbeController(char *ctrl_name)
 		        SYSFS_LCTRL_FILE, strerror(errno));
 	} else {
 		int s = read(fd, ctrl_name, 31);
-		if (s > 0)
-		{
+		if (s > 0) {
 			ctrl_name[s-1] = '\0';
 			found = TRUE;
 		} else {
@@ -276,8 +275,7 @@ OMAPFBPreInit(ScrnInfoPtr pScrn, int flags)
 	/* Open the device node */
 	dev = xf86FindOptionValue(pEnt->device->options, "fb");
 	ofb->fd = open(dev != NULL ? dev : DEFAULT_DEVICE, O_RDWR, 0);
-	if (ofb->fd == -1)
-	{
+	if (ofb->fd == -1) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 		           "%s: Opening '%s' failed: %s\n", __FUNCTION__,
 		           dev != NULL ? dev : DEFAULT_DEVICE, strerror(errno));
@@ -285,8 +283,7 @@ OMAPFBPreInit(ScrnInfoPtr pScrn, int flags)
 		return FALSE;
 	}
 
-	if (ioctl (ofb->fd, FBIOGET_FSCREENINFO, &ofb->fixed_info))
-	{
+	if (ioctl (ofb->fd, FBIOGET_FSCREENINFO, &ofb->fixed_info)) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 		           "%s: Reading hardware info failed: %s\n",
 		           __FUNCTION__, strerror(errno));
@@ -304,8 +301,7 @@ OMAPFBPreInit(ScrnInfoPtr pScrn, int flags)
 	}
 
 	/* Check the memory setup. */
-	if (ioctl (ofb->fd, OMAPFB_QUERY_MEM, &ofb->mem_info))
-	{
+	if (ioctl (ofb->fd, OMAPFB_QUERY_MEM, &ofb->mem_info)) {
 		/* As a fallback, set up the mem_info struct from info we know */
 		ofb->mem_info.type = OMAPFB_MEMTYPE_SDRAM;
 		ofb->mem_info.size = ofb->fixed_info.smem_len;
@@ -316,8 +312,7 @@ OMAPFBPreInit(ScrnInfoPtr pScrn, int flags)
 	           pScrn->videoRam/1024,
 	           ofb->mem_info.type == OMAPFB_MEMTYPE_SDRAM ? "SDRAM" : "SRAM");
 
-	if (ioctl (ofb->fd, FBIOGET_VSCREENINFO, &ofb->state_info))
-	{
+	if (ioctl (ofb->fd, FBIOGET_VSCREENINFO, &ofb->state_info)) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 		           "%s: Reading screen state info failed: %s\n",
 		           __FUNCTION__, strerror(errno));
@@ -336,8 +331,8 @@ OMAPFBPreInit(ScrnInfoPtr pScrn, int flags)
 
 	/* This apparently sets the color weights. We're feeding it zeros. */
 	if (!xf86SetWeight(pScrn, zeros, zeros)) {
-            return FALSE;
-        }
+		return FALSE;
+	}
 
 	/* Initialize default visual */
 	if (!xf86SetDefaultVisual(pScrn, -1))
@@ -443,9 +438,9 @@ OMAPFBCloseScreen(int scrnIndex, ScreenPtr pScreen)
 
 	munmap(ofb->fb, ofb->mem_info.size);
 
-        pScreen->CloseScreen = ofb->CloseScreen;
+	pScreen->CloseScreen = ofb->CloseScreen;
 	
-        return (*pScreen->CloseScreen)(scrnIndex, pScreen);
+	return (*pScreen->CloseScreen)(scrnIndex, pScreen);
 }
 
 static Bool
@@ -509,7 +504,7 @@ OMAPFBScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 				visual->blueMask = pScrn->mask.blue;
 			}
 		}
-	   }
+	}
 
 	/* Initialize XRender fallbacks */
 	if (!fbPictureInit(pScreen, NULL, 0)) {
@@ -534,8 +529,7 @@ OMAPFBScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	set_mode(ofb, &ofb->default_mode);
 
 	/* Make sure the plane is up and running */
-	if (ioctl (ofb->fd, OMAPFB_QUERY_PLANE, &ofb->plane_info))
-	{
+	if (ioctl (ofb->fd, OMAPFB_QUERY_PLANE, &ofb->plane_info)) {
 		/* This is non-fatal since we might be running against older
 		 * kernel driver in which case we only do basic 2D stuff...
 		 */
@@ -546,8 +540,7 @@ OMAPFBScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 		ofb->plane_info.out_width = ofb->state_info.xres;
 		ofb->plane_info.out_height = ofb->state_info.yres;
 
-		if (ioctl (ofb->fd, OMAPFB_SETUP_PLANE, &ofb->plane_info))
-		{
+		if (ioctl (ofb->fd, OMAPFB_SETUP_PLANE, &ofb->plane_info)) {
 			xf86DrvMsg(scrnIndex, X_ERROR,
 			            "%s: Plane setup failed: %s\n",
 			            __FUNCTION__, strerror(errno));
@@ -572,8 +565,7 @@ OMAPFBScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 
 	/* TODO: This should depend on the AccelMethod option */
 	ofb->exa = exaDriverAlloc();
-	if (OMAPFBSetupExa(ofb))
-	{
+	if (OMAPFBSetupExa(ofb)) {
 		exaDriverInit(pScreen, ofb->exa);
 	} else {
 		xfree(ofb->exa);
@@ -585,7 +577,6 @@ OMAPFBScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	OMAPFBXvScreenInit(pScreen);
 	
 	/* TODO: RANDR support */
-
 	
 	return TRUE;
 }
@@ -622,13 +613,11 @@ set_mode(OMAPFBPtr ofb, DisplayModePtr mode)
 	var.rotate = FB_ROTATE_UR;
 	var.vmode = FB_VMODE_NONINTERLACED;
 
-	if (ioctl (ofb->fd, FBIOPUT_VSCREENINFO, &var))
-	{
+	if (ioctl (ofb->fd, FBIOPUT_VSCREENINFO, &var)) {
 		return FALSE;
 	}
 
-	if (ioctl (ofb->fd, FBIOGET_VSCREENINFO, &ofb->state_info))
-	{
+	if (ioctl (ofb->fd, FBIOGET_VSCREENINFO, &ofb->state_info)) {
 		return FALSE;
 	}
 #endif
@@ -679,8 +668,7 @@ static Bool OMAPFBSwitchMode(int scrnIndex, DisplayModePtr mode, int flags)
 	ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
 	OMAPFBPtr ofb = OMAPFB(pScrn);
 
-	if (!set_mode(ofb, mode))
-	{
+	if (!set_mode(ofb, mode)) {
 		xf86DrvMsg(scrnIndex, X_ERROR,
 		           "%s: Setting display mode failed: %s\n",
 		           __FUNCTION__, strerror(errno));
@@ -690,8 +678,7 @@ static Bool OMAPFBSwitchMode(int scrnIndex, DisplayModePtr mode, int flags)
 		set_mode(ofb, &ofb->default_mode);
 	}
 
-	if (ioctl (ofb->fd, FBIOGET_VSCREENINFO, &ofb->state_info))
-	{
+	if (ioctl (ofb->fd, FBIOGET_VSCREENINFO, &ofb->state_info)) {
 		xf86DrvMsg(scrnIndex, X_ERROR,
 		           "%s: Reading screen state info failed: %s\n",
 		           __FUNCTION__, strerror(errno));
@@ -808,16 +795,16 @@ OMAPFBSaveScreen(ScreenPtr pScreen, int mode)
 static Bool
 OMAPFBDriverFunc(ScrnInfoPtr pScrn, xorgDriverFuncOp op, pointer ptr)
 {
-    xorgHWFlags *flag;
-    
-    switch (op) {
-	case GET_REQUIRED_HW_INTERFACES:
-	    flag = (CARD32*)ptr;
-	    (*flag) = 0;
-	    return TRUE;
-	default:
-	    return FALSE;
-    }
+	xorgHWFlags *flag;
+
+	switch (op) {
+		case GET_REQUIRED_HW_INTERFACES:
+			flag = (CARD32*)ptr;
+			(*flag) = 0;
+			return TRUE;
+		default:
+			return FALSE;
+	}
 }
 
 /*** Module and driver setup */
